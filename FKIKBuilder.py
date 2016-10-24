@@ -1,31 +1,3 @@
-'''
-------------------------------------------------------------------------
-@Author Doug Schieber
-@email DougSchieberAnimation@gmail.com
-@Last Updated: October 10, 2016
-@Version: 0.0.1 Beta
-
-
-WIP FK/IK Limb Builder
-- Intially creates three locators for limb positioning
-- creates based on three joints an FK control chain or IK control chain
-
-Future Incrementation:
-- Fixes on soft Ik builder (stretching)
-- class on joint chain builder
-- GUI 
-- three joint chains fk/ik/bind that blend between fk/ik
-- possible script node for ikfk snapping
-- Bug Fixes
-
-
-
-
-------------------------------------------------------------------------
-'''
-
-
-
 #=======================#
 #      MAIN IMPORTS	#
 #=======================#
@@ -41,26 +13,54 @@ import math
 class IkFkBuilder(object):
 	
 	#creating class variables
-	def __init__(self, prefix, joint1, joint2, joint3, twistAxis):
+	def __init__(self, prefix, joint1, joint2, joint3, twistAxis, limbtype):
 		self.prefix = prefix
 		self.joint1 = joint1
 		self.joint2 = joint2
 		self.joint3 = joint3
 		self.twistAxis = twistAxis
+		self.limbtype = limbtype
 	
-	#checking var names
 	def to_String(self):
 		print(self.prefix)
 		print(self.joint1)
 		print(self.joint2)
 		print(self.joint3)
 		print(self.twistAxis)
+		print(self.limbtype)
 	
-	
-	
-	#needs work, is not currently working properly. 
-	# Scaling Issues with stretch, should make dynamically with control.
-	
+	def makeLimb(self):
+		
+		#decoloration of vars
+		limbtype = self.limbtype
+		prefix = self.prefix
+		limb = ['limb_loc_1', 'limb_loc_2','limb_loc_3']
+		nameSpace = str(limbtype) + "_"+ str(prefix)
+		count = 1
+		jntObject = []
+		
+		#create joints
+		for v in limb:
+			jnt = cmds.joint( )
+			pos = cmds.xform(v , q =1, ws =1, t =1)
+			cmds.xform(jnt, ws =1, t =pos)
+			jntObject = cmds.rename(jnt, nameSpace + '_Jnt_' + str(count))
+			if count == 1:
+				self.joint1 = jntObject
+			elif count == 2:
+				self.joint2 = jntObject
+			else:
+				self.joint3 = jntObject
+			count = count + 1
+		
+		#var for reorient
+		jntSelect = nameSpace + '_Jnt_1'
+		
+		#reorient joints
+		cmds.joint (jntSelect, e =1, oj = "xyz", secondaryAxisOrient= "yup", ch =1, zso =1)
+		
+		
+				
 	def doIt(self):
 		
 		#class variables
@@ -70,6 +70,21 @@ class IkFkBuilder(object):
 		twistAxis = self.twistAxis
 		joints = [self.joint1, self.joint2, self.joint3]
 		
+		''' 
+		prefix - Prefix string attached to all nodes
+		joints - List of joints in chain. e.g. ['Shoulder_Joint', 'Elbow_Joint', 'Wrist_Joint']
+		control - ...
+		twistAxis - Axis pointing down the joint chain. Setup requires this. Typically x, but y, z will work. 
+		
+		USAGE:
+		import softIK
+		softIK.doIt('left_arm', ['joint1', 'joint2', 'joint3'], 'left_arm_control', 'x')
+		
+		Attributes (added to control):
+		Stretch - Toggles stretching
+		Soft - Adjusts amount of softness, adjust as required
+		
+		'''
 		
 		# Find the full length of all joints
 		length = 0
@@ -160,7 +175,7 @@ class IkFkBuilder(object):
 			return distLocGroup
 			
 	'''
-	I think it would be better to point constrain the ikhandle to the controller rather than parent it 
+	I think it would be better to point constrait the ikhandle to the controller rather than parent it 
 	Also adding an offset_null to the controls would be nice too
 	'''
 	
@@ -171,6 +186,8 @@ class IkFkBuilder(object):
 		midJoint = self.joint2
 		endJoint = self.joint3
 		ctrlName = self.prefix
+		
+		print(startJoint)
 		
 		#creates ikRPSolver
 		handle = cmds.ikHandle(sj=startJoint, ee=endJoint, solver="ikRPsolver")
@@ -229,15 +246,17 @@ class IkFkBuilder(object):
 		
 		cmds.rename(loc[0], ctrlName+'_pvCtrl_1')
 		
-	#Rather straight forward FK control builder
+	
 	def createFKjointChain(self):
+		
+		#class Vars
 		startJoint = self.joint1
 		midJoint = self.joint2
 		endJoint = self.joint3
 		ctrlName = self.prefix
 		
-		
-		sel = cmds.ls(startJoint, midJoint, endJoint)
+		#list of Vars
+		sel = cmds.ls(startJoint,midJoint, endJoint)
 		#creates and names FK controls
 		if sel:
 			ctrls = []
@@ -309,30 +328,8 @@ class IkFkBuilder(object):
 		#parent fk Controls to each other
 		cmds.parent(groups[2],ctrls[1])
 		cmds.parent(groups[1],ctrls[0])
-	
+		
 
-#@static
-'''
-I believe it'd be worth making the limb builder into a class itself. 
-It'd help in building a three chain ikFk limb. 
-
-'''
-def makeLimb(limbtype, prefix):
-	limbtype = limbtype
-	prefix = prefix
-	limb = ['limb_loc_1', 'limb_loc_2','limb_loc_3']
-	nameSpace = str(limbtype) + "_"+ str(prefix)
-	count = 1
-	jntObject = []
-	for v in limb:
-		jnt = cmds.joint( )
-		pos = cmds.xform(v , q =1, ws =1, t =1)
-		cmds.xform(jnt, ws =1, t =pos)
-		jntObject = pm.rename(jnt, nameSpace + '_Jnt_' + str(count))
-		count = count + 1
-	jntSelect = nameSpace + '_Jnt_1'
-	cmds.joint (jntSelect, e =1, oj = "xyz", secondaryAxisOrient= "yup", ch =1, zso =1)
-	return jntObject
 
 #@static
 def createLocs():
@@ -347,21 +344,18 @@ def createLocs():
 	cmds.move( 0, 0, 0, varLoc3, relative=True, objectSpace=True, worldSpaceDistance=True)
 	
 #@static
-#Test Function Currently. 
+#Works well, needs a change in strings for object naming. 
 def createObjects():
-	nameSpace = 'leg'
-	limbType = 'fk' 
-	fkLimb = makeLimb(limbType, nameSpace)
-	cmds.select(fkLimb)
-	prefix = nameSpace + limbType
-	#ikObjects = IkFkBuilder(prefix = prefix + '_ctrl', joint1 = 'fk_leg_Jnt_1', joint2 =  'fk_leg_Jnt_2', joint3 =  'fk_leg_Jnt_3', twistAxis = 'x')
-	#fkObjects = IkFkBuilder(prefix = 'fkCtrl', joint1 = 'fk_leg_Jnt_1', joint2 =  'fk_leg_Jnt_2', joint3 =  'fk_leg_Jnt_3', twistAxis = 'x')
-	#ikObjects.to_String()	
-	#ikObjects.createIkjointChain()
-	#control = prefix + "_ikCtrl_1"
-	#ikObjects.doIt()
-	#fkObjects.createFKjointChain()
-	#createFKjointChain()
+	 
+	fkObjects = IkFkBuilder(prefix = 'fk', joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'x', limbtype = 'leg')
+	fkObjects.makeLimb()
+	#fkObjects.to_String()
+	fkObjects.createFKjointChain()
+	ikObjects = IkFkBuilder(prefix = 'ik' + '_ctrl', joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'x', limbtype = 'leg')
+	ikObjects.makeLimb()
+	ikObjects.createIkjointChain()
+	ikObjects.doIt()
 	
 createObjects()
+createLocs()
 #
