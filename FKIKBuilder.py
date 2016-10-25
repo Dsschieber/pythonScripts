@@ -1,3 +1,26 @@
+'''
+Author: Doug Schieber
+Version 0.0.5
+
+LimbCreator
+	-creates a ikfk chain from locators
+
+Bugs:
+	-joint chain is being parented under position locators
+	-soft ik stretch is really buggy (seems connections are not being made properly)
+	
+Future Additions:
+	-bind chain
+	-blend between fkIk
+	-GUI
+	-ikfk snapping
+
+
+'''
+
+
+
+
 #=======================#
 #      MAIN IMPORTS	#
 #=======================#
@@ -13,13 +36,12 @@ import math
 class IkFkBuilder(object):
 	
 	#creating class variables
-	def __init__(self, prefix, joint1, joint2, joint3, twistAxis, limbtype):
+	def __init__(self, prefix, joint1, joint2, joint3, twistAxis):
 		self.prefix = prefix
 		self.joint1 = joint1
 		self.joint2 = joint2
 		self.joint3 = joint3
 		self.twistAxis = twistAxis
-		self.limbtype = limbtype
 	
 	def to_String(self):
 		print(self.prefix)
@@ -27,12 +49,13 @@ class IkFkBuilder(object):
 		print(self.joint2)
 		print(self.joint3)
 		print(self.twistAxis)
-		print(self.limbtype)
 	
-	def makeLimb(self):
+	
+	#seems the joint chains are some how being parented under the position locators
+	def makeLimb(self, limbtype):
 		
 		#decoloration of vars
-		limbtype = self.limbtype
+		limbtype = limbtype
 		prefix = self.prefix
 		limb = ['limb_loc_1', 'limb_loc_2','limb_loc_3']
 		nameSpace = str(limbtype) + "_"+ str(prefix)
@@ -41,7 +64,7 @@ class IkFkBuilder(object):
 		
 		#create joints
 		for v in limb:
-			jnt = cmds.joint( )
+			jnt = cmds.joint()
 			pos = cmds.xform(v , q =1, ws =1, t =1)
 			cmds.xform(jnt, ws =1, t =pos)
 			jntObject = cmds.rename(jnt, nameSpace + '_Jnt_' + str(count))
@@ -177,6 +200,7 @@ class IkFkBuilder(object):
 	'''
 	I think it would be better to point constrait the ikhandle to the controller rather than parent it 
 	Also adding an offset_null to the controls would be nice too
+	
 	'''
 	
 	def createIkjointChain(self):
@@ -187,7 +211,6 @@ class IkFkBuilder(object):
 		endJoint = self.joint3
 		ctrlName = self.prefix
 		
-		print(startJoint)
 		
 		#creates ikRPSolver
 		handle = cmds.ikHandle(sj=startJoint, ee=endJoint, solver="ikRPsolver")
@@ -214,7 +237,7 @@ class IkFkBuilder(object):
 				# select
 				cmds.select(ctrls)
 				#parent ikHandle to new control
-				cmds.parent(handle[0], ctrls)
+				cmds.pointConstraint(handle[0], ctrls)
 		'''
 		some math for finding pole vector control position
 		'''
@@ -346,16 +369,19 @@ def createLocs():
 #@static
 #Works well, needs a change in strings for object naming. 
 def createObjects():
-	 
-	fkObjects = IkFkBuilder(prefix = 'fk', joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'x', limbtype = 'leg')
-	fkObjects.makeLimb()
-	#fkObjects.to_String()
-	fkObjects.createFKjointChain()
-	ikObjects = IkFkBuilder(prefix = 'ik' + '_ctrl', joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'x', limbtype = 'leg')
-	ikObjects.makeLimb()
+	ikObjects = IkFkBuilder(prefix = 'leg', joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'x')
+	ikObjects.makeLimb("ik")
 	ikObjects.createIkjointChain()
 	ikObjects.doIt()
+	fkObjects = IkFkBuilder(prefix = 'leg', joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'x')
+	fkObjects.makeLimb("fk")
+	#fkObjects.to_String()
+	fkObjects.createFKjointChain()
 	
+	
+	
+
+
 createObjects()
 createLocs()
 #
