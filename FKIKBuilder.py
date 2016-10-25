@@ -1,8 +1,3 @@
-#testing gitHub 
-def helloworld():
-	print("hello world")
-
-
 '''
 Author: Doug Schieber
 Version 0.0.5
