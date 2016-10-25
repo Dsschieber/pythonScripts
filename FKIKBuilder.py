@@ -1,3 +1,8 @@
+#testing gitHub 
+def helloworld():
+	print("hello world")
+
+
 '''
 Author: Doug Schieber
 Version 0.0.5
@@ -14,6 +19,7 @@ Future Additions:
 	-blend between fkIk
 	-GUI
 	-ikfk snapping
+	-add offset to ik ctrls
 
 
 '''
@@ -197,11 +203,6 @@ class IkFkBuilder(object):
 			
 			return distLocGroup
 			
-	'''
-	I think it would be better to point constrait the ikhandle to the controller rather than parent it 
-	Also adding an offset_null to the controls would be nice too
-	
-	'''
 	
 	def createIkjointChain(self):
 		
