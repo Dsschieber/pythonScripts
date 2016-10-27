@@ -1,3 +1,14 @@
+#=======================#
+#      MAIN IMPORTS	#
+#=======================#
+from maya import cmds, OpenMaya
+import maya.cmds as cmds 
+import maya.mel as mel
+import pymel.core as pm
+import math
+
+
+
 '''
 empty
 '''
