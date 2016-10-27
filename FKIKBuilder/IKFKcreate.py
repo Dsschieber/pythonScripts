@@ -34,7 +34,7 @@ import math
 
 
 
-class IkFkBuilder(object):
+class IKFKcreate(object):
 	
 	#creating class variables
 	def __init__(self, prefix, joint1, joint2, joint3, twistAxis):
