@@ -15,7 +15,10 @@ Future Additions:
 	-blend between fkIk
 	-GUI
 	-ikfk snapping
-	-add offset to ik ctrls
+	-name ikGroup and ikSolver
+	-use the null control script multiple times inside functions while it should be a function itself within the class.
+	-colors on controls
+	-lock control attrs
 
 SoftIK function by: Nick Miller
 vimeo.com/80905132
@@ -70,6 +73,8 @@ class IkFkBuilder(object):
 		nameSpace = str(limbtype) + "_"+ str(prefix)
 		count = 1
 		jntObject = []
+		cmds.select(d=True)
+		
 		
 		#create joints
 		for v in limb:
@@ -93,7 +98,7 @@ class IkFkBuilder(object):
 		cmds.joint (jntSelect, e =1, oj = "xyz", secondaryAxisOrient= "yup", ch =1, zso =1)
 		cmds.joint(lastJnt, e =1,  oj='none', ch=1, zso=1)
 		
-	def softIK_proc(self, stretch = True , Primary = 'Y'):
+	def softIK_proc(self, stretch = True , Primary = 'X'):
 		#gets input values
 		
 		name = 'soft'
@@ -297,107 +302,6 @@ class IkFkBuilder(object):
 			while ( i < n - 1 ):
 				cmds.connectAttr( '%s_stretch_blend.outputR' % name, '%s.scale%s' % (joints[i], primaryAxis), force = True )
 				i += 1
-			
-	#-----------------------------------------------------------------------------------------------------------------------------#
-	# obsolete	softIk Setup
-	'''
-	def doIt(self):
-		
-		#class variables
-		prefix = self.prefix
-		joints = []
-		control = self.prefix + "_ikCtrl_1"
-		twistAxis = self.twistAxis
-		joints = [self.joint1, self.joint2, self.joint3]
-		
-		# Find the full length of all joints
-		length = 0
-		for i in range(1, len(joints)):
-			length += abs(cmds.getAttr(joints[i]+'.t'+twistAxis))
-		
-		
-		cmds.addAttr(control, longName='stretch', defaultValue=0, minValue=0, maxValue=1, keyable=True)
-		cmds.addAttr(control, longName='soft', at='double', defaultValue=0.001, minValue=0.001, maxValue=10, keyable=True)
-		
-		# Create distance node & locators
-		
-		startLocator = cmds.spaceLocator(name=prefix+'startDistLoc')
-		cmds.pointConstraint(joints[0], startLocator)
-		cmds.setAttr(startLocator[0]+'.visibility', 0)
-		
-		endLocator = cmds.spaceLocator(name=prefix+'endDistLoc')
-		cmds.pointConstraint(control, endLocator)
-		cmds.setAttr(endLocator[0]+'.visibility', 0)
-		
-		distLocGroup = cmds.group(empty=True, name=prefix+'distLoc_grp')
-		cmds.parent(startLocator, endLocator, distLocGroup)
-		
-		distanceNode = cmds.createNode('distanceBetween', name=prefix+'distanceBetween')
-		cmds.connectAttr(startLocator[0]+'.translate', distanceNode+'.point1')
-		cmds.connectAttr(endLocator[0]+'.translate', distanceNode+'.point2')
-		
-		defaultDist = cmds.getAttr(distanceNode+'.distance')
-		
-		
-		# Build node network
-		
-		mdn1 = cmds.createNode('multiplyDivide', name=prefix+'soft_IK_01_mult_mdn')
-		cmds.connectAttr(control+'.soft', mdn1+'.input1X')
-		cmds.setAttr(mdn1+'.input2X', -1)
-		
-		pma1 = cmds.createNode('plusMinusAverage', name=prefix+'soft_IK_plus_pma')
-		cmds.setAttr(pma1+'.input1D[0]', length)
-		cmds.connectAttr(mdn1+'.outputX', pma1+'.input1D[1]')
-		
-		pma2 = cmds.createNode('plusMinusAverage', name=prefix+'soft_IK_01_minus_pma')
-		cmds.setAttr(pma2+'.operation', 2)
-		cmds.connectAttr(pma1+'.output1D', pma2+'.input1D[0]')
-		cmds.connectAttr(distanceNode+'.distance', pma2+'.input1D[1]')
-		
-		mdn2 = cmds.createNode('multiplyDivide', name=prefix+'soft_IK_01_div_mdn')
-		cmds.setAttr(mdn2+'.operation', 2)
-		cmds.connectAttr(pma2+'.output1D', mdn2+'.input1X')
-		cmds.connectAttr(control+'.soft', mdn2+'.input2X')
-		
-		mdn3 = cmds.createNode('multiplyDivide', name=prefix+'soft_IK_pow_mdn')
-		cmds.setAttr(mdn3+'.operation', 3)
-		cmds.setAttr(mdn3+'.input1X', math.e)
-		cmds.connectAttr(mdn2+'.outputX', mdn3+'.input2X')
-		
-		mdn4 = cmds.createNode('multiplyDivide', name=prefix+'soft_IK_02_mult_mdn')
-		cmds.connectAttr(control+'.soft', mdn4+'.input1X')
-		cmds.connectAttr(mdn3+'.outputX', mdn4+'.input2X')
-		
-		pma3 = cmds.createNode('plusMinusAverage', name=prefix+'soft_IK_02_minus_pma')
-		cmds.setAttr(pma3+'.operation', 2)
-		cmds.setAttr(pma3+'.input1D[0]', length)
-		cmds.connectAttr(mdn4+'.outputX', pma3+'.input1D[1]')
-		
-		cdn1 = cmds.createNode('condition', name=prefix+'soft_IK_cdn')
-		cmds.setAttr(cdn1+'.operation', 4)
-		cmds.connectAttr(distanceNode+'.distance', cdn1+'.firstTerm')
-		cmds.connectAttr(distanceNode+'.distance', cdn1+'.colorIfTrueR')
-		cmds.connectAttr(pma1+'.output1D', cdn1+'.secondTerm')
-		cmds.connectAttr(pma3+'.output1D', cdn1+'.colorIfFalseR')
-		
-		mdn5 = cmds.createNode('multiplyDivide', name=prefix+'soft_IK_02_div_mdn')
-		cmds.setAttr(mdn5+'.operation', 2)
-		cmds.connectAttr(distanceNode+'.distance', mdn5+'.input1X')
-		cmds.connectAttr(cdn1+'.outColorR', mdn5+'.input2X')
-		
-		for i in range(1, len(joints)):
-			mdn = cmds.createNode('multiplyDivide', name=prefix+'soft_IK_multiply_0%s_pma' % i)
-			translateValue = cmds.getAttr(joints[i]+'.t' + twistAxis)
-			cmds.setAttr(mdn+'.input1X', translateValue)
-			cmds.connectAttr(mdn5+'.outputX', mdn+'.input2X')
-			b2a = cmds.createNode('blendTwoAttr', name=prefix+'soft_IK_0%s_b2a' % i)
-			cmds.setAttr(b2a+'.input[0]', translateValue)
-			cmds.connectAttr(mdn+'.outputX', b2a+'.input[1]')
-			cmds.connectAttr(control+'.stretch', b2a+'.attributesBlender') 
-			cmds.connectAttr(b2a+'.output', joints[i]+'.t' + twistAxis)
-			
-			return distLocGroup
-	'''	
 	
 	def createIkjointChain(self):
 		
@@ -482,7 +386,8 @@ class IkFkBuilder(object):
 		'''
 		some math for finding pole vector control position
 		'''
-
+		#poleVector = startPoint + (unit( crossProduct(perpendicularVector, endVector ) ) * multVal)
+		
 		
 		#endjoint position
 		pos = cmds.xform(endJoint, q=True, ws=True, t=True)
@@ -596,10 +501,11 @@ class IkFkBuilder(object):
 		cmds.parent(groups[2],fkCtrls[1])
 		cmds.parent(groups[1],fkCtrls[0])
 
-
+#should increment this in the ikfkCreate class.
 def mag( v ):
     return( math.sqrt( pow( v[0], 2) + pow( v[1], 2) + pow( v[2], 2)))
-	
+
+#possible way to source the code.
 def findFile(path):
     	for dirname in sys.path:
         	possible = os.path.join(dirname, path)
@@ -635,18 +541,21 @@ def createLocs():
 #Works well, needs a change in strings for object naming. 
 def createObjects():
 	ikObjects = IkFkBuilder(prefix = 'leg', joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'X')
-	ikObjects.makeLimb("ik")
-	ikObjects.createIkjointChain()
-	ikObjects.softIK_proc()
-	#fkObjects = IkFkBuilder(prefix = 'leg', joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'x')
-	#fkObjects.makeLimb("fk")
-	#fkObjects.to_String()
-	#fkObjects.createFKjointChain()
-	
-	
-	
-#createLocs()
+	fkObjects = IkFkBuilder(prefix = 'leg', joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'X')
+	bindJnts = IkFkBuilder(prefix = 'leg', joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'X')
+	#does it really need a try statement? 
+	try:
+		fkObjects.makeLimb("fk")
+		ikObjects.makeLimb("ik")
+		bindJnts.makeLimb("bn")
+		ikObjects.createIkjointChain()
+		fkObjects.createFKjointChain()
+		ikObjects.softIK_proc()
+	except ValueError: 
+		cmds.confirmDialog( title='Value Error', message='NameSpace duplicate, Please Rename prefix', button=['Okay'], cancelButton='Okay', dismissString='Okay' )
+
+createLocs()
 
 createObjects()
 
-#deleteLocs()
+deleteLocs()
