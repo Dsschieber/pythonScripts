@@ -1,7 +1,10 @@
 
 '''
 Author: Doug Schieber
-Version 0.0.5
+Version 0.0.7
+
+USE:
+	I don't mind what you do with this script, if you take part of it or etc... just give me some credit. 
 
 LimbCreator
 	-creates a ikfk chain from locators
@@ -11,8 +14,8 @@ Bugs:
 	-soft ik stretch is really buggy (seems connections are not being made properly)
 	
 Future Additions:
-	-bind chain
-	-blend between fkIk
+	-should there be a wrist control? third FK control seems useless. 
+	-FK/IK blend ctrl
 	-GUI
 	-ikfk snapping
 	-name ikGroup and ikSolver
@@ -20,8 +23,9 @@ Future Additions:
 	-colors on controls
 	-lock control attrs
 
-SoftIK function by: Nick Miller
-vimeo.com/80905132
+Credits:
+	SoftIK function by: Nick Miller
+	vimeo.com/80905132
 
 '''
 
@@ -41,11 +45,13 @@ import math
 
 
 class BuildChain(object): 
+	binders = ''
 	
 	def __init__(self, bindChain, ikChain, fkChain):
 		self.bindChain = bindChain
 		self.ikChain = ikChain
 		self.fkChain = fkChain
+		self.binders = ''
 	
 	def to_String(self):
 		print(self.bindChain)
@@ -54,20 +60,22 @@ class BuildChain(object):
 	
 	
 	def createSwitchCtrl(self):
-		pass
+		#get
+		bind = self.bindChain
 		
+		
+		for stuff in binders:
+			if (cmds.objectType(stuff)=='constraint'):
+				print("hello I'm a constraint")
 	
 	
 	
 	def bindTogether(self):
-		'''
-		this function blends the bind, ik, fk joints together creating
-		an ik/fk switch.
-		'''
 		# get
 		bind = self.bindChain
 		ik = self.ikChain
 		fk = self.fkChain
+		
 		
 		# get
 		wBind=[]
@@ -104,16 +112,13 @@ class BuildChain(object):
 			# counter
 			i+=1
 	def orientBind(self):
-		'''
-		this function blends the bind, ik, fk joints together creating
-		an ik/fk switch.
-		'''
 		# get
 		bind = self.bindChain
 		ik = self.ikChain
 		fk = self.fkChain
 		
 		# get
+		binders = []
 		wBind=[]
 		wIk=[]
 		wFk=[]
@@ -133,23 +138,26 @@ class BuildChain(object):
 		i=0
 		# cycle
 		while(i < ((len(wBind))and(len(wIk))and(len(wFk)))):
+			
 			#create orient 
-			cmds.orientConstraint(wIk[i], wBind[i] ,mo=False)
-			cmds.orientConstraint(wFk[i], wBind[i] ,mo=False)
+			bind01 = cmds.orientConstraint(wIk[i], wBind[i] ,mo=False)
+			bind02 = cmds.orientConstraint(wFk[i], wBind[i] ,mo=False)
+			binders.append(bind01)
 			#setAttr "bn_leg_Jnt_1_orientConstraint1.interpType" 0;
 			#cmds.setAttr(wBind[i] + "_orientConstraint1.interpType", 0)
 			#no flip has more flip
 			
 			# create blend color
-			cmds.shadingNode('blendColors',au=True,n=wBind[i]+'_blendScale')
+			blendNode = cmds.shadingNode('blendColors',au=True,n=wBind[i]+'_blendScale')
+			binders.append(blendNode)
 			# connect bind,ik,fk
 			cmds.connectAttr(wIk[i]+'.scale',wBind[i]+'_blendScale.color2',f=True)
 			cmds.connectAttr(wFk[i]+'.scale',wBind[i]+'_blendScale.color1',f=True)
 			cmds.connectAttr(wBind[i]+'_blendScale.output',wBind[i]+'.scale',f=True)
 			# counter
-			i+=1				
-
-
+			i+=1	
+		print(binders)
+		BuildChain.binders = binders
 
 class IkFkBuilder(object):
 	
