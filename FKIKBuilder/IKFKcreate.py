@@ -40,6 +40,72 @@ import math
 
 
 
+class BuildChain(object): 
+	
+	def __init__(self, bindChain, ikChain, fkChain):
+		self.bindChain = bindChain
+		self.ikChain = ikChain
+		self.fkChain = fkChain
+	
+	def to_String(self):
+		print(self.bindChain)
+		print(self.ikChain)
+		print(self.fkChain)
+	
+	
+	def createSwitchCtrl(self):
+		pass
+		
+	
+	
+	
+	def bindTogether(self):
+		'''
+		this function blends the bind, ik, fk joints together creating
+		an ik/fk switch.
+		'''
+		# get
+		bind = self.bindChain
+		ik = self.ikChain
+		fk = self.fkChain
+		
+		# get
+		wBind=[]
+		wIk=[]
+		wFk=[]
+		# get joints
+		# most likely unnecessary. However, its a little bit of error checking to make sure objects ARE joints(effector is bothersome)
+		for stuff in bind:
+			if (cmds.objectType(stuff)=='joint'):
+				wBind.append(stuff)
+		for stuff in ik:
+			if (cmds.objectType(stuff)=='joint'):
+				wIk.append(stuff)
+		for stuff in fk:
+			if (cmds.objectType(stuff)=='joint'):
+				wFk.append(stuff)
+		
+		# counter
+		i=0
+		# cycle
+		while(i < ((len(wBind))and(len(wIk))and(len(wFk)))):
+			# create blend color
+			cmds.shadingNode('blendColors',au=True,n=wBind[i]+'_blendRotate')
+			# connect bind,ik,fk
+			cmds.connectAttr(wIk[i]+'.rotate',wBind[i]+'_blendRotate.color2',f=True)
+			cmds.connectAttr(wFk[i]+'.rotate',wBind[i]+'_blendRotate.color1',f=True)
+			cmds.connectAttr(wBind[i]+'_blendRotate.output',wBind[i]+'.rotate',f=True)
+			# create blend color
+			cmds.shadingNode('blendColors',au=True,n=wBind[i]+'_blendScale')
+			# connect bind,ik,fk
+			cmds.connectAttr(wIk[i]+'.scale',wBind[i]+'_blendScale.color2',f=True)
+			cmds.connectAttr(wFk[i]+'.scale',wBind[i]+'_blendScale.color1',f=True)
+			cmds.connectAttr(wBind[i]+'_blendScale.output',wBind[i]+'.scale',f=True)
+			# counter
+			i+=1
+				
+
+
 
 class IkFkBuilder(object):
 	
@@ -540,6 +606,14 @@ def createLocs():
 #@static
 #Works well, needs a change in strings for object naming. 
 def createObjects():
+	
+	bindChain = []
+	ikChain = []
+	fkChain = []
+	
+	
+	
+	#declare vars
 	ikObjects = IkFkBuilder(prefix = 'leg', joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'X')
 	fkObjects = IkFkBuilder(prefix = 'leg', joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'X')
 	bindJnts = IkFkBuilder(prefix = 'leg', joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'X')
@@ -553,6 +627,15 @@ def createObjects():
 		ikObjects.softIK_proc()
 	except ValueError: 
 		cmds.confirmDialog( title='Value Error', message='NameSpace duplicate, Please Rename prefix', button=['Okay'], cancelButton='Okay', dismissString='Okay' )
+		
+	bindChain = bindJnts.joint1, bindJnts.joint2, bindJnts.joint3
+	ikChain = ikObjects.joint1, ikObjects.joint2, ikObjects.joint3
+	fkChain = fkObjects.joint1, fkObjects.joint2, fkObjects.joint3
+	
+	allJoints = BuildChain(bindChain = bindChain,ikChain = ikChain, fkChain = fkChain)
+	
+	allJoints.to_String()
+	allJoints.bindTogether()
 
 createLocs()
 
