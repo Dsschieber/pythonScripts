@@ -1,7 +1,7 @@
 
 '''
 Author: Doug Schieber
-Version 0.0.7
+Version 0.0.8
 
 USE:
 	I don't mind what you do with this script, if you take part of it or etc... just give me some credit. 
@@ -15,7 +15,6 @@ Bugs:
 	
 Future Additions:
 	-should there be a wrist control? third FK control seems useless. 
-	-FK/IK blend ctrl
 	-GUI
 	-ikfk snapping
 	-name ikGroup and ikSolver
@@ -47,11 +46,12 @@ import math
 class BuildChain(object): 
 	binders = ''
 	
-	def __init__(self, bindChain, ikChain, fkChain):
+	def __init__(self, bindChain, ikChain, fkChain, prefix):
 		self.bindChain = bindChain
 		self.ikChain = ikChain
 		self.fkChain = fkChain
 		self.binders = ''
+		self.prefix = prefix
 	
 	def to_String(self):
 		print(self.bindChain)
@@ -62,12 +62,37 @@ class BuildChain(object):
 	def createSwitchCtrl(self):
 		#get
 		bind = self.bindChain
+		binders = BuildChain.binders
+		objectName = self.prefix
+		ikChain = self.ikChain
+		fkChain = self.fkChain
 		
+		#creating control
+		ctrl = mel.eval('curve -d 1 -p 0 0 2 -p -1.5 0 3.5 -p -0.5 0 3.5 -p -0.5 0 5 -p 0.5 0 5 -p 0.5 0 3.5 -p 1.5 0 3.5 -p 0 0 2 -p 0 1.5 3.5 -p 0 0.5 3.5 -p 0 0.5 5 -p 0 -0.5 5 -p 0 -0.5 3.5 -p 0 -1.5 3.5 -p 0 0 2 -k 0 -k 1 -k 2 -k 3 -k 4 -k 5 -k 6 -k 7 -k 8 -k 9 -k 10 -k 11 -k 12 -k 13 -k 14 ;')
+		cmds.pointConstraint(bind[2],ctrl,mo=False)
+		newName = cmds.rename(ctrl, objectName + '_switchFkIk_ctrl_1')
+		#addAttr -ln "FK_to_IK"  -at double  -min 0 -max 1 -dv 0 |leg_switchFkIk_ctrl_1;
+		cmds.addAttr(newName, k=True , ln='FK_to_IK' , at= 'double' , min=0 , max=1 , dv=0)
+		#setAttr -lock true -keyable false -channelBox false "leg_switchFkIk_ctrl_1.tx";
+		cmds.setAttr(newName + '.t', lock=True, k=False, channelBox=False)
+		cmds.setAttr(newName + '.r', lock=True, k=False, channelBox=False)
+		cmds.setAttr(newName + '.s', lock=True, k=False, channelBox=False)
 		
 		for stuff in binders:
-			if (cmds.objectType(stuff)=='constraint'):
-				print("hello I'm a constraint")
-	
+			if (cmds.objectType(stuff)=='orientConstraint'):
+				targetList = cmds.orientConstraint(stuff, q=True, tl=True)
+				#setDrivenKeyframe -currentDriver leg_switchFkIk_ctrl_1.FK_to_IK bn_leg_Jnt_1_orientConstraint1.ik_leg_Jnt_1W0;
+				#setDrivenKeyframe -currentDriver leg_switchFkIk_ctrl_1.FK_to_IK bn_leg_Jnt_1_orientConstraint1.fk_leg_Jnt_1W1;
+				
+				#propositional logic lol
+				cmds.setDrivenKeyframe(stuff+'.'+targetList[0]+'W0', cd = newName + '.FK_to_IK',  dv=1, v=0 )
+				cmds.setDrivenKeyframe(stuff+'.'+targetList[0]+'W0', cd = newName + '.FK_to_IK',  dv=0, v=1 )
+				cmds.setDrivenKeyframe(stuff+'.'+targetList[1]+'W1', cd = newName + '.FK_to_IK',  dv=0, v=0 )
+				cmds.setDrivenKeyframe(stuff+'.'+targetList[1]+'W1', cd = newName + '.FK_to_IK',  dv=1, v=1 )
+			else:
+				#connectAttr -f leg_switchFkIk_ctrl_1.FK_to_IK bn_leg_Jnt_1_blendScale.blender;
+				cmds.connectAttr(newName + '.FK_to_IK', stuff + '.blender', f=True)
+				print(stuff)
 	
 	
 	def bindTogether(self):
@@ -142,21 +167,23 @@ class BuildChain(object):
 			#create orient 
 			bind01 = cmds.orientConstraint(wIk[i], wBind[i] ,mo=False)
 			bind02 = cmds.orientConstraint(wFk[i], wBind[i] ,mo=False)
-			binders.append(bind01)
 			#setAttr "bn_leg_Jnt_1_orientConstraint1.interpType" 0;
 			#cmds.setAttr(wBind[i] + "_orientConstraint1.interpType", 0)
 			#no flip has more flip
 			
 			# create blend color
 			blendNode = cmds.shadingNode('blendColors',au=True,n=wBind[i]+'_blendScale')
-			binders.append(blendNode)
+			bind02.append(blendNode)
 			# connect bind,ik,fk
 			cmds.connectAttr(wIk[i]+'.scale',wBind[i]+'_blendScale.color2',f=True)
 			cmds.connectAttr(wFk[i]+'.scale',wBind[i]+'_blendScale.color1',f=True)
 			cmds.connectAttr(wBind[i]+'_blendScale.output',wBind[i]+'.scale',f=True)
 			# counter
-			i+=1	
-		print(binders)
+			i+=1
+			#extend binders
+			binders.extend(bind02)
+			
+			
 		BuildChain.binders = binders
 
 class IkFkBuilder(object):
@@ -659,13 +686,12 @@ def createLocs():
 #Works well, needs a change in strings for object naming. 
 def createObjects():
 	
+	#empty vars
 	bindChain = []
 	ikChain = []
 	fkChain = []
 	
-	
-	
-	#declare vars
+	#declare class vars
 	ikObjects = IkFkBuilder(prefix = 'leg', joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'X')
 	fkObjects = IkFkBuilder(prefix = 'leg', joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'X')
 	bindJnts = IkFkBuilder(prefix = 'leg', joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'X')
@@ -679,18 +705,19 @@ def createObjects():
 		ikObjects.softIK_proc()
 	except ValueError: 
 		cmds.confirmDialog( title='Value Error', message='NameSpace duplicate, Please Rename prefix', button=['Okay'], cancelButton='Okay', dismissString='Okay' )
-		
+	
+	#new Vars for each chain
 	bindChain = bindJnts.joint1, bindJnts.joint2, bindJnts.joint3
 	ikChain = ikObjects.joint1, ikObjects.joint2, ikObjects.joint3
 	fkChain = fkObjects.joint1, fkObjects.joint2, fkObjects.joint3
 	
-	allJoints = BuildChain(bindChain = bindChain,ikChain = ikChain, fkChain = fkChain)
-	
-	allJoints.to_String()
+	#create binds
+	allJoints = BuildChain(bindChain = bindChain,ikChain = ikChain, fkChain = fkChain, prefix = 'leg')
 	allJoints.orientBind()
+	allJoints.createSwitchCtrl()
 
 createLocs()
 
 createObjects()
 
-deleteLocs()
+#deleteLocs()
