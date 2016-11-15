@@ -21,6 +21,7 @@ Future Additions:
 	-use the null control script multiple times inside functions while it should be a function itself within the class.
 	-colors on controls
 	-lock control attrs
+	-scale factor on controls
 
 Credits:
 	SoftIK function by: Nick Miller
@@ -94,48 +95,6 @@ class BuildChain(object):
 				cmds.connectAttr(newName + '.FK_to_IK', stuff + '.blender', f=True)
 				print(stuff)
 	
-	
-	def bindTogether(self):
-		# get
-		bind = self.bindChain
-		ik = self.ikChain
-		fk = self.fkChain
-		
-		
-		# get
-		wBind=[]
-		wIk=[]
-		wFk=[]
-		# get joints
-		# most likely unnecessary. However, its a little bit of error checking to make sure objects ARE joints(effector is bothersome)
-		for stuff in bind:
-			if (cmds.objectType(stuff)=='joint'):
-				wBind.append(stuff)
-		for stuff in ik:
-			if (cmds.objectType(stuff)=='joint'):
-				wIk.append(stuff)
-		for stuff in fk:
-			if (cmds.objectType(stuff)=='joint'):
-				wFk.append(stuff)
-		
-		# counter
-		i=0
-		# cycle
-		while(i < ((len(wBind))and(len(wIk))and(len(wFk)))):
-			# create blend color
-			cmds.shadingNode('blendColors',au=True,n=wBind[i]+'_blendRotate')
-			# connect bind,ik,fk
-			cmds.connectAttr(wIk[i]+'.rotate',wBind[i]+'_blendRotate.color2',f=True)
-			cmds.connectAttr(wFk[i]+'.rotate',wBind[i]+'_blendRotate.color1',f=True)
-			cmds.connectAttr(wBind[i]+'_blendRotate.output',wBind[i]+'.rotate',f=True)
-			# create blend color
-			cmds.shadingNode('blendColors',au=True,n=wBind[i]+'_blendScale')
-			# connect bind,ik,fk
-			cmds.connectAttr(wIk[i]+'.scale',wBind[i]+'_blendScale.color2',f=True)
-			cmds.connectAttr(wFk[i]+'.scale',wBind[i]+'_blendScale.color1',f=True)
-			cmds.connectAttr(wBind[i]+'_blendScale.output',wBind[i]+'.scale',f=True)
-			# counter
-			i+=1
 	def orientBind(self):
 		# get
 		bind = self.bindChain
@@ -186,9 +145,100 @@ class BuildChain(object):
 			
 		BuildChain.binders = binders
 
+'''
+
+- seperating out the create control and pass it back in should save a lot of space
+
+
+
+
+'''
+class ControlCreate():
+	
+	controllers = ''
+	
+	
+	def __init__(self):
+		ControlCreate.controllers = ''
+		
+	def createControl(self, leObjet, suffix, ctrlName):
+		#vars
+		sel = leObjet
+		suffix = suffix
+		count = 1
+		
+		#error check
+		if sel:
+			ctrls = []
+			for stuff in sel:
+				#determine control type
+				if (suffix == 'ik'): 
+					ctrl = mel.eval('curve -d 1 -p -1 1 1 -p -1 1 -1 -p 1 1 -1 -p 1 1 1 -p -1 1 1 -p -1 -1 1 -p -1 -1 -1 -p -1 1 -1 -p -1 1 1 -p -1 -1 1 -p 1 -1 1 -p 1 1 1 -p 1 1 -1 -p 1 -1 -1 -p 1 -1 1 -p 1 -1 -1 -p -1 -1 -1 ;')
+				elif (suffix == 'fk'):
+					ctrl = mel.eval('curve -d 1 -p 0 1 0 -p 0 0.987688 -0.156435 -p 0 0.951057 -0.309017 -p 0 0.891007 -0.453991 -p 0 0.809017 -0.587786 -p 0 0.707107 -0.707107 -p 0 0.587785 -0.809017 -p 0 0.453991 -0.891007 -p 0 0.309017 -0.951057 -p 0 0.156434 -0.987689 -p 0 0 -1 -p 0 -0.156434 -0.987689 -p 0 -0.309017 -0.951057 -p 0 -0.453991 -0.891007 -p 0 -0.587785 -0.809017 -p 0 -0.707107 -0.707107 -p 0 -0.809017 -0.587786 -p 0 -0.891007 -0.453991 -p 0 -0.951057 -0.309017 -p 0 -0.987688 -0.156435 -p 0 -1 0 -p -4.66211e-09 -0.987688 0.156434 -p -9.20942e-09 -0.951057 0.309017 -p -1.353e-08 -0.891007 0.453991 -p -1.75174e-08 -0.809017 0.587785 -p -2.10734e-08 -0.707107 0.707107 -p -2.41106e-08 -0.587785 0.809017 -p -2.65541e-08 -0.453991 0.891007 -p -2.83437e-08 -0.309017 0.951057 -p -2.94354e-08 -0.156434 0.987688 -p -2.98023e-08 0 1 -p -2.94354e-08 0.156434 0.987688 -p -2.83437e-08 0.309017 0.951057 -p -2.65541e-08 0.453991 0.891007 -p -2.41106e-08 0.587785 0.809017 -p -2.10734e-08 0.707107 0.707107 -p -1.75174e-08 0.809017 0.587785 -p -1.353e-08 0.891007 0.453991 -p -9.20942e-09 0.951057 0.309017 -p -4.66211e-09 0.987688 0.156434 -p 0 1 0 -p -0.156435 0.987688 0 -p -0.309017 0.951057 0 -p -0.453991 0.891007 0 -p -0.587785 0.809017 0 -p -0.707107 0.707107 0 -p -0.809017 0.587785 0 -p -0.891007 0.453991 0 -p -0.951057 0.309017 0 -p -0.987689 0.156434 0 -p -1 0 0 -p -0.987689 -0.156434 0 -p -0.951057 -0.309017 0 -p -0.891007 -0.453991 0 -p -0.809017 -0.587785 0 -p -0.707107 -0.707107 0 -p -0.587785 -0.809017 0 -p -0.453991 -0.891007 0 -p -0.309017 -0.951057 0 -p -0.156435 -0.987688 0 -p 0 -1 0 -p 0.156434 -0.987688 0 -p 0.309017 -0.951057 0 -p 0.453991 -0.891007 0 -p 0.587785 -0.809017 0 -p 0.707107 -0.707107 0 -p 0.809017 -0.587785 0 -p 0.891006 -0.453991 0 -p 0.951057 -0.309017 0 -p 0.987688 -0.156434 0 -p 1 0 0 -p 0.951057 0 -0.309017 -p 0.809018 0 -0.587786 -p 0.587786 0 -0.809017 -p 0.309017 0 -0.951057 -p 0 0 -1 -p -0.309017 0 -0.951057 -p -0.587785 0 -0.809017 -p -0.809017 0 -0.587785 -p -0.951057 0 -0.309017 -p -1 0 0 -p -0.951057 0 0.309017 -p -0.809017 0 0.587785 -p -0.587785 0 0.809017 -p -0.309017 0 0.951057 -p -2.98023e-08 0 1 -p 0.309017 0 0.951057 -p 0.587785 0 0.809017 -p 0.809017 0 0.587785 -p 0.951057 0 0.309017 -p 1 0 0 -p 0.987688 0.156434 0 -p 0.951057 0.309017 0 -p 0.891006 0.453991 0 -p 0.809017 0.587785 0 -p 0.707107 0.707107 0 -p 0.587785 0.809017 0 -p 0.453991 0.891007 0 -p 0.309017 0.951057 0 -p 0.156434 0.987688 0 -p 0 1 0 ;')
+				else:
+					print('is bind')
+				# parent
+				cmds.pointConstraint(stuff,ctrl,mo=False)
+				# del con
+				cmds.delete(ctrl,cn=True)
+				# rename ctrl
+				newName = cmds.rename(ctrlName+'_' + suffix + 'Ctrl_' + str(count))
+				# append selection list
+				ctrls.append(newName)	
+				# select
+				cmds.select(ctrls)
+				#increment count
+				count = count + 1
+				
+		ControlCreate.controllers = ctrls
+		
+		place = 1
+		# sel
+		if (len(ctrls) > 0):
+			# group list
+			groups = []
+			# group selected
+			for stuff in ctrls:
+				par = cmds.listRelatives(stuff,p=True)
+				#creates a second null group, currently not functioning
+				if '_null_' in stuff:
+					# split obj
+					split = stuff.split('_null_')
+					objName = split[0]
+					num = split[-1]
+					new = int(num) + 1
+					if not(cmds.objExists(objName+'_null_'+str(new))):
+						# create group
+						cmds.group(n=objName+'_null_'+str(new),em=True)
+						if (place == 1):
+							cmds.parentConstraint(stuff,objName+'_null_'+str(new),mo=False,n='tEmPbLaHbLaH')
+							cmds.delete('tEmPbLaHbLaH')
+						cmds.parent(stuff,objName+'_null_'+str(new)) 
+						groups.append(objName+'_null_'+str(new))
+						if (par):
+							cmds.parent(objName+'_null_'+str(new),par[0])
+						
+				#creates null group
+				else:
+					if (cmds.objExists(stuff+'_null_0')==0):
+						cmds.group(n=stuff+'_null_0',em=True)
+						if (place == 1):
+							cmds.parentConstraint(stuff,stuff+'_null_0',mo=False,n='tEmPbLaHbLaH')
+							cmds.delete('tEmPbLaHbLaH')
+						cmds.parent(stuff,stuff+'_null_0')
+						groups.append(stuff+'_null_0')
+						if (par):
+							cmds.parent(stuff+'_null_0',par[0])
+		
+		
+		#scale of controls
+
+
 class IkFkBuilder(object):
 	
 	handle = ''
+	newCtrl = ''
 	
 	#creating class variables
 	def __init__(self, prefix, joint1, joint2, joint3, twistAxis):
@@ -198,6 +248,8 @@ class IkFkBuilder(object):
 		self.joint3 = joint3
 		self.twistAxis = twistAxis
 		IkFkBuilder.handle = ''
+		IkFkBuilder.newCtrl = ''
+		self.ControlCreate = ControlCreate()
 	
 	def to_String(self):
 		print(self.prefix)
@@ -467,66 +519,15 @@ class IkFkBuilder(object):
 		'''
 		#select end joint
 		sel = cmds.ls(endJoint)
-		# check
-		if sel:
-			ctrls = []
-			for stuff in sel:
-				# control
-				ctrl = mel.eval('curve -d 1 -p -1 1 1 -p -1 1 -1 -p 1 1 -1 -p 1 1 1 -p -1 1 1 -p -1 -1 1 -p -1 -1 -1 -p -1 1 -1 -p -1 1 1 -p -1 -1 1 -p 1 -1 1 -p 1 1 1 -p 1 1 -1 -p 1 -1 -1 -p 1 -1 1 -p 1 -1 -1 -p -1 -1 -1 ;')
-				# parent
-				cmds.pointConstraint(stuff,ctrl,mo=False)
-				# del con
-				cmds.delete(ctrl,cn=True)
-				# rename ctrl
-				newName = cmds.rename(ctrlName+'_ikCtrl_#')
-				# append selection list
-				ctrls.append(newName)	
-				# select
-				cmds.select(ctrls)
-				#pointConstraint ik to control
-				cmds.pointConstraint(ctrls[0], ikGroup, mo=1)
-				
-				
-		place = 1
-		# sel
-		if (len(ctrls) > 0):
-			# group list
-			groups = []
-			# group selected
-			for stuff in ctrls:
-				par = cmds.listRelatives(stuff,p=True)
-				#creates a second null group, currently not functioning
-				if '_null_' in stuff:
-					# split obj
-					split = stuff.split('_null_')
-					objName = split[0]
-					num = split[-1]
-					new = int(num) + 1
-					if not(cmds.objExists(objName+'_null_'+str(new))):
-						# create group
-						cmds.group(n=objName+'_null_'+str(new),em=True)
-						if (place == 1):
-							cmds.parentConstraint(stuff,objName+'_null_'+str(new),mo=False,n='tEmPbLaHbLaH')
-							cmds.delete('tEmPbLaHbLaH')
-						cmds.parent(stuff,objName+'_null_'+str(new)) 
-						groups.append(objName+'_null_'+str(new))
-						if (par):
-							cmds.parent(objName+'_null_'+str(new),par[0])
-						
-				#creates null group
-				else:
-					if (cmds.objExists(stuff+'_null_0')==0):
-						cmds.group(n=stuff+'_null_0',em=True)
-						if (place == 1):
-							cmds.parentConstraint(stuff,stuff+'_null_0',mo=False,n='tEmPbLaHbLaH')
-							cmds.delete('tEmPbLaHbLaH')
-						cmds.parent(stuff,stuff+'_null_0')
-						groups.append(stuff+'_null_0')
-						if (par):
-							cmds.parent(stuff+'_null_0',par[0])
-							
 		
-						
+		IkControls = ControlCreate()
+		IkControls.createControl(sel, 'ik', ctrlName)
+		ikCtrl = IkControls.controllers
+		
+		#pointConstraint ik to control
+		cmds.pointConstraint(ikCtrl[0], ikGroup, mo=1)
+		
+		IkFkBuilder.newCtrl = ikCtrl
 		# sel groups
 		'''
 		some math for finding pole vector control position
@@ -573,78 +574,32 @@ class IkFkBuilder(object):
 		ctrlName = self.prefix
 		
 		#list of Vars
-		sel = cmds.ls(startJoint,midJoint, endJoint)
+		sel = cmds.ls(startJoint,midJoint)
 		#creates and names FK controls
-		if sel:
-			fkCtrls = []
-			for stuff in sel:
-				# control
-				ctrl = mel.eval('curve -d 1 -p 0 1 0 -p 0 0.987688 -0.156435 -p 0 0.951057 -0.309017 -p 0 0.891007 -0.453991 -p 0 0.809017 -0.587786 -p 0 0.707107 -0.707107 -p 0 0.587785 -0.809017 -p 0 0.453991 -0.891007 -p 0 0.309017 -0.951057 -p 0 0.156434 -0.987689 -p 0 0 -1 -p 0 -0.156434 -0.987689 -p 0 -0.309017 -0.951057 -p 0 -0.453991 -0.891007 -p 0 -0.587785 -0.809017 -p 0 -0.707107 -0.707107 -p 0 -0.809017 -0.587786 -p 0 -0.891007 -0.453991 -p 0 -0.951057 -0.309017 -p 0 -0.987688 -0.156435 -p 0 -1 0 -p -4.66211e-09 -0.987688 0.156434 -p -9.20942e-09 -0.951057 0.309017 -p -1.353e-08 -0.891007 0.453991 -p -1.75174e-08 -0.809017 0.587785 -p -2.10734e-08 -0.707107 0.707107 -p -2.41106e-08 -0.587785 0.809017 -p -2.65541e-08 -0.453991 0.891007 -p -2.83437e-08 -0.309017 0.951057 -p -2.94354e-08 -0.156434 0.987688 -p -2.98023e-08 0 1 -p -2.94354e-08 0.156434 0.987688 -p -2.83437e-08 0.309017 0.951057 -p -2.65541e-08 0.453991 0.891007 -p -2.41106e-08 0.587785 0.809017 -p -2.10734e-08 0.707107 0.707107 -p -1.75174e-08 0.809017 0.587785 -p -1.353e-08 0.891007 0.453991 -p -9.20942e-09 0.951057 0.309017 -p -4.66211e-09 0.987688 0.156434 -p 0 1 0 -p -0.156435 0.987688 0 -p -0.309017 0.951057 0 -p -0.453991 0.891007 0 -p -0.587785 0.809017 0 -p -0.707107 0.707107 0 -p -0.809017 0.587785 0 -p -0.891007 0.453991 0 -p -0.951057 0.309017 0 -p -0.987689 0.156434 0 -p -1 0 0 -p -0.987689 -0.156434 0 -p -0.951057 -0.309017 0 -p -0.891007 -0.453991 0 -p -0.809017 -0.587785 0 -p -0.707107 -0.707107 0 -p -0.587785 -0.809017 0 -p -0.453991 -0.891007 0 -p -0.309017 -0.951057 0 -p -0.156435 -0.987688 0 -p 0 -1 0 -p 0.156434 -0.987688 0 -p 0.309017 -0.951057 0 -p 0.453991 -0.891007 0 -p 0.587785 -0.809017 0 -p 0.707107 -0.707107 0 -p 0.809017 -0.587785 0 -p 0.891006 -0.453991 0 -p 0.951057 -0.309017 0 -p 0.987688 -0.156434 0 -p 1 0 0 -p 0.951057 0 -0.309017 -p 0.809018 0 -0.587786 -p 0.587786 0 -0.809017 -p 0.309017 0 -0.951057 -p 0 0 -1 -p -0.309017 0 -0.951057 -p -0.587785 0 -0.809017 -p -0.809017 0 -0.587785 -p -0.951057 0 -0.309017 -p -1 0 0 -p -0.951057 0 0.309017 -p -0.809017 0 0.587785 -p -0.587785 0 0.809017 -p -0.309017 0 0.951057 -p -2.98023e-08 0 1 -p 0.309017 0 0.951057 -p 0.587785 0 0.809017 -p 0.809017 0 0.587785 -p 0.951057 0 0.309017 -p 1 0 0 -p 0.987688 0.156434 0 -p 0.951057 0.309017 0 -p 0.891006 0.453991 0 -p 0.809017 0.587785 0 -p 0.707107 0.707107 0 -p 0.587785 0.809017 0 -p 0.453991 0.891007 0 -p 0.309017 0.951057 0 -p 0.156434 0.987688 0 -p 0 1 0 ;')
-				# parent
-				cmds.parentConstraint(stuff,ctrl,mo=False)
-				# del con
-				cmds.delete(ctrl,cn=True)
-				# rename ctrl
-				newName = cmds.rename(ctrlName+'_fkCtrl_#')
-				# append selection list
-				fkCtrls.append(newName)	
-				# select
-				cmds.select(fkCtrls)
+		fkControls = ControlCreate()
+		fkControls.createControl(sel, 'fk', ctrlName)
+		fkCtrls = fkControls.controllers
+		
+		
+		IkFkBuilder.newCtrl = fkCtrls
 		
 		#create constraints
 		cmds.orientConstraint(fkCtrls[0],startJoint, mo=True)
 		cmds.orientConstraint(fkCtrls[1],midJoint, mo=True)
-		cmds.orientConstraint(fkCtrls[2],endJoint, mo=True)
+		#cmds.orientConstraint(fkCtrls[2],endJoint, mo=True)
 		cmds.pointConstraint(startJoint,fkCtrls[0], mo=True)
 		cmds.pointConstraint(midJoint,fkCtrls[1], mo=True)
-		cmds.pointConstraint(endJoint,fkCtrls[2], mo=True)
+		#cmds.pointConstraint(endJoint,fkCtrls[2], mo=True)
 		
 		
-		place = 1
-		# sel
-		if (len(fkCtrls) > 0):
-			# group list
-			groups = []
-			# group selected
-			for stuff in fkCtrls:
-				par = cmds.listRelatives(stuff,p=True)
-				#creates a second null group, currently not functioning
-				if '_null_' in stuff:
-					# split obj
-					split = stuff.split('_null_')
-					objName = split[0]
-					num = split[-1]
-					new = int(num) + 1
-					if not(cmds.objExists(objName+'_null_'+str(new))):
-						# create group
-						cmds.group(n=objName+'_null_'+str(new),em=True)
-						if (place == 1):
-							cmds.parentConstraint(stuff,objName+'_null_'+str(new),mo=False,n='tEmPbLaHbLaH')
-							cmds.delete('tEmPbLaHbLaH')
-						cmds.parent(stuff,objName+'_null_'+str(new))
-						groups.append(objName+'_null_'+str(new))
-						if (par):
-							cmds.parent(objName+'_null_'+str(new),par[0])
-						cmds.select(cl=True)
-				#creates null group
-				else:
-					if (cmds.objExists(stuff+'_null_0')==0):
-						cmds.group(n=stuff+'_null_0',em=True)
-						if (place == 1):
-							cmds.parentConstraint(stuff,stuff+'_null_0',mo=False,n='tEmPbLaHbLaH')
-							cmds.delete('tEmPbLaHbLaH')
-						cmds.parent(stuff,stuff+'_null_0')
-						groups.append(stuff+'_null_0')
-						if (par):
-							cmds.parent(stuff+'_null_0',par[0])
-						cmds.select(cl=True)
-			# sel groups
-			if (groups):
-				cmds.select(groups,r=True)
+		item01 = cmds.listRelatives(fkCtrls[0], p=True)
+		item02 = cmds.listRelatives(fkCtrls[1], p=True)
 		
+		groups = [item01, item02]
 		#parent fk Controls to each other
-		cmds.parent(groups[2],fkCtrls[1])
+		#cmds.parent(groups[2],fkCtrls[1])
 		cmds.parent(groups[1],fkCtrls[0])
+		
 
 #should increment this in the ikfkCreate class.
 def mag( v ):
@@ -706,6 +661,7 @@ def createObjects():
 	except ValueError: 
 		cmds.confirmDialog( title='Value Error', message='NameSpace duplicate, Please Rename prefix', button=['Okay'], cancelButton='Okay', dismissString='Okay' )
 	
+	print(fkObjects.newCtrl)
 	#new Vars for each chain
 	bindChain = bindJnts.joint1, bindJnts.joint2, bindJnts.joint3
 	ikChain = ikObjects.joint1, ikObjects.joint2, ikObjects.joint3
