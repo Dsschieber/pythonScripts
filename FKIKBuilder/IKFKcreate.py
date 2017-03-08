@@ -12,13 +12,13 @@ LimbCreator
 Bugs:
 	-joint chain is being parented under position locators
 	-soft ik stretch is really buggy (seems connections are not being made properly)
+	-FK does not have transforms of joints!!! (???)
 	
 Future Additions:
 	-should there be a wrist control? third FK control seems useless. 
 	-GUI
 	-ikfk snapping
 	-name ikGroup and ikSolver
-	-use the null control script multiple times inside functions while it should be a function itself within the class.
 	-colors on controls
 	-lock control attrs
 	-scale factor on controls
@@ -41,7 +41,8 @@ import maya.cmds as cmds
 import maya.mel as mel
 import pymel.core as pm
 import math
-
+from PySide import QtGui, QtCore
+import shiboken as qtBindingGenerator
 
 
 class BuildChain(object): 
@@ -238,7 +239,8 @@ class ControlCreate():
 class IkFkBuilder(object):
 	
 	handle = ''
-	newCtrl = ''
+	ikCtrl = ''
+	fkCtrl = ''
 	
 	#creating class variables
 	def __init__(self, prefix, joint1, joint2, joint3, twistAxis):
@@ -248,7 +250,8 @@ class IkFkBuilder(object):
 		self.joint3 = joint3
 		self.twistAxis = twistAxis
 		IkFkBuilder.handle = ''
-		IkFkBuilder.newCtrl = ''
+		IkFkBuilder.ikCtrl = ''
+		IkFkBuilder.fkCtrl = ''
 		self.ControlCreate = ControlCreate()
 	
 	def to_String(self):
@@ -298,7 +301,7 @@ class IkFkBuilder(object):
 	def softIK_proc(self, stretch = True , Primary = 'X'):
 		#gets input values
 		
-		name = 'soft'
+		name = 'soft' + self.prefix
 		ctrlName = self.prefix + "_ikCtrl_1"
 		ikhName = IkFkBuilder.handle[0]
 		stretch = stretch
@@ -520,6 +523,7 @@ class IkFkBuilder(object):
 		#select end joint
 		sel = cmds.ls(endJoint)
 		
+		#create ik controls
 		IkControls = ControlCreate()
 		IkControls.createControl(sel, 'ik', ctrlName)
 		ikCtrl = IkControls.controllers
@@ -527,7 +531,7 @@ class IkFkBuilder(object):
 		#pointConstraint ik to control
 		cmds.pointConstraint(ikCtrl[0], ikGroup, mo=1)
 		
-		IkFkBuilder.newCtrl = ikCtrl
+		IkFkBuilder.ikCtrl = ikCtrl
 		# sel groups
 		'''
 		some math for finding pole vector control position
@@ -537,10 +541,10 @@ class IkFkBuilder(object):
 		
 		#endjoint position
 		pos = cmds.xform(endJoint, q=True, ws=True, t=True)
-		a = om.MVector(pos[0], pos[1], pos[2])
+		a = OpenMaya.MVector(pos[0], pos[1], pos[2])
 		#startjoint position
 		pos = cmds.xform(startJoint, q=True, ws=True, t=True)
-		b = om.MVector(pos[0], pos[1], pos[2])
+		b = OpenMaya.MVector(pos[0], pos[1], pos[2])
 		
 		c = b - a 
 		d = c * .5
@@ -548,20 +552,23 @@ class IkFkBuilder(object):
 		
 		#get midjoint position
 		pos = cmds.xform(midJoint, q=True, ws=True, t=True)
-		c = om.MVector(pos[0], pos[1], pos[2])
+		c = OpenMaya.MVector(pos[0], pos[1], pos[2])
 		
 		f = c - e
 		g = f * 2
 		h = e + g 
 		
 		#create and move pole vector ctrl
-		loc = cmds.spaceLocator()
+		loc = cmds.spaceLocator(n=ctrlName+'_pvCtrl_1')
 		cmds.move(h.x, h.y, h.z, loc[0])
 		
 		#create polevector constraint
 		cmds.poleVectorConstraint( loc[0], handle[0] )
 		
-		cmds.rename(loc[0], ctrlName+'_pvCtrl_1')
+		#locName = cmds.rename(loc[0], ctrlName+'_pvCtrl_1')
+		
+		ikCtrl.extend(loc)
+		IkFkBuilder.ikCtrl = ikCtrl
 		return IkFkBuilder.handle
 		
 	
@@ -581,7 +588,7 @@ class IkFkBuilder(object):
 		fkCtrls = fkControls.controllers
 		
 		
-		IkFkBuilder.newCtrl = fkCtrls
+		IkFkBuilder.fkCtrl = fkCtrls
 		
 		#create constraints
 		cmds.orientConstraint(fkCtrls[0],startJoint, mo=True)
@@ -640,16 +647,28 @@ def createLocs():
 #@static
 #Works well, needs a change in strings for object naming. 
 def createObjects():
+	for attribute in ["JointOrientation", "MirrorAxis"]:
+		skipList = []
+		for i in range(0,3):
+			if cmds.control(attribute + "_" + str(i) + "_cmCheckBox", exists = True):
+				ptr = maya.OpenMayaUI.MQtUtil.findControl(attribute + "_" + str(i) + "_cmCheckBox")
+				radioBox = qtBindingGenerator.wrapInstance(long(ptr), QtGui.QRadioButton)
+				value = radioBox.isChecked()
+	for objectLine in ["prefixEdit"]:
+		ptr = maya.OpenMayaUI.MQtUtil.findControl(objectLine)
+		prefixLine = qtBindingGenerator.wrapInstance(long(ptr), QtGui.QLineEdit)
+		objPrefix = prefixLine.text()
 	
 	#empty vars
 	bindChain = []
 	ikChain = []
 	fkChain = []
+	ctrlObjects = []
 	
 	#declare class vars
-	ikObjects = IkFkBuilder(prefix = 'leg', joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'X')
-	fkObjects = IkFkBuilder(prefix = 'leg', joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'X')
-	bindJnts = IkFkBuilder(prefix = 'leg', joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'X')
+	ikObjects = IkFkBuilder(prefix = objPrefix, joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'X')
+	fkObjects = IkFkBuilder(prefix = objPrefix, joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'X')
+	bindJnts = IkFkBuilder(prefix = objPrefix, joint1 = 'limb_loc_1', joint2 =  'limb_loc_2', joint3 =  'limb_loc_3', twistAxis = 'X')
 	#does it really need a try statement? 
 	try:
 		fkObjects.makeLimb("fk")
@@ -661,19 +680,131 @@ def createObjects():
 	except ValueError: 
 		cmds.confirmDialog( title='Value Error', message='NameSpace duplicate, Please Rename prefix', button=['Okay'], cancelButton='Okay', dismissString='Okay' )
 	
-	print(fkObjects.newCtrl)
+	#saving ctrls
+	ctrlObjects.extend( ikObjects.ikCtrl)
+	ctrlObjects.extend( fkObjects.fkCtrl)
+	print(ctrlObjects)
+	
 	#new Vars for each chain
 	bindChain = bindJnts.joint1, bindJnts.joint2, bindJnts.joint3
 	ikChain = ikObjects.joint1, ikObjects.joint2, ikObjects.joint3
 	fkChain = fkObjects.joint1, fkObjects.joint2, fkObjects.joint3
 	
 	#create binds
-	allJoints = BuildChain(bindChain = bindChain,ikChain = ikChain, fkChain = fkChain, prefix = 'leg')
+	allJoints = BuildChain(bindChain = bindChain,ikChain = ikChain, fkChain = fkChain, prefix = objPrefix)
 	allJoints.orientBind()
 	allJoints.createSwitchCtrl()
+	
+	#delete Locators
+	deleteLocs()
 
-createLocs()
 
-createObjects()
+def getMayaWindow():
+    '''
+    Gets maya top window
+    '''
+    import maya.OpenMayaUI as apiUI
 
-#deleteLocs()
+    ptr = apiUI.MQtUtil.mainWindow()
+    if ptr is not None:
+        return qtBindingGenerator.wrapInstance(long(ptr), QtGui.QWidget)
+
+    else:
+        print "No window found"				
+
+
+def createRadioLayout(font, attribute, parentLayout, value):
+	#layout for radio buttons
+	textLayout0X = QtGui.QHBoxLayout()
+	parentLayout.addLayout(textLayout0X)
+	
+	label = QtGui.QLabel(attribute)
+	textLayout0X.addWidget(label)
+	label.setFont(font)
+	
+	
+	#radio buttons
+	radioButtons = [QtGui.QRadioButton("X"), QtGui.QRadioButton("Y"), QtGui.QRadioButton("Z")]
+	radioButtons[0].setChecked(True)
+	button_group = QtGui.QButtonGroup()
+	
+	#add spacer
+	if value == True:
+		spacer = QtGui.QSpacerItem(60,0)
+		textLayout0X.addSpacerItem(spacer)
+	else: 
+		spacer = QtGui.QSpacerItem(28,0)
+		textLayout0X.addSpacerItem(spacer)
+	
+	for i in xrange(len(radioButtons)):
+		# Add each radio button to the button layout
+		objectName = attribute.partition(":")[0]
+		radioButtons[i].setObjectName(objectName + "_" + str(i) + "_cmCheckBox")
+		textLayout0X.addWidget(radioButtons[i]) 
+		# Add each radio button to the button group & give it an ID of i 
+		button_group.addButton(radioButtons[i], i) 
+	
+	if value == True:
+		mirrorCheckBox = QtGui.QCheckBox("Mirror")
+		textLayout0X.addWidget(mirrorCheckBox)
+
+
+
+
+def createLimb_UI():
+	
+	windowName = "autoLimbWin"
+	
+	#if exists, deleteUI
+	if (cmds.window('autoLimbWin', exists=True)):
+		cmds.deleteUI('autoLimbWin')
+	
+	#create Window
+	parentWindow = getMayaWindow()
+	mainWindow = QtGui.QMainWindow(parentWindow)
+	mainWindow.setObjectName(windowName)
+	mainWindow.setWindowTitle("Auto Limb Creator")
+	mainWindow.setMinimumSize(340, 175)
+	mainWindow.setMaximumSize(340, 175)
+	
+	#create main widget
+	mainWidget = QtGui.QWidget()
+	mainWindow.setCentralWidget(mainWidget)
+	
+	#mainLayout
+	verticalLayout = QtGui.QVBoxLayout(mainWidget)
+	
+	#font
+	font = QtGui.QFont()
+	font.setPointSize(10)
+	font.setBold(True)
+	
+	createRadioLayout(font, "JointOrientation:", verticalLayout, False)
+	createRadioLayout(font, "MirrorAxis:", verticalLayout, True)
+	
+	#layout for textField
+	textLayout01 = QtGui.QHBoxLayout()
+	verticalLayout.addLayout(textLayout01)
+	
+	#create text label
+	textLineEditLabel01 = QtGui.QLabel("Prefix Name:")
+	textLayout01.addWidget(textLineEditLabel01)
+	textLineEditLabel01.setFont(font)
+	
+	#create line
+	textLineEdit01 = QtGui.QLineEdit()
+	textLineEdit01.setObjectName("prefixEdit")
+	textLayout01.addWidget(textLineEdit01)
+	
+	#button locs
+	createLocsButton = QtGui.QPushButton("Create Proxy Locators")
+	verticalLayout.addWidget(createLocsButton)
+	createLocsButton.clicked.connect(createLocs)
+	
+	#button locs
+	createLimbsButton = QtGui.QPushButton("Create Limbs From Proxy")
+	verticalLayout.addWidget(createLimbsButton)
+	createLimbsButton.clicked.connect(createObjects)
+	
+	mainWindow.show()
+	
