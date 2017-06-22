@@ -40,8 +40,15 @@ import maya.cmds as cmds
 import maya.mel as mel
 import pymel.core as pm
 import math
-from PySide import QtGui, QtCore
-import shiboken as qtBindingGenerator
+
+try:
+    from PySide import QtCore
+    from PySide import QtGui as widgets
+    from shiboken import wrapInstance
+except:
+    from PySide2 import QtCore, QtGui
+    from PySide2 import QtWidgets as widgets
+    from shiboken2 import wrapInstance
 
 
 class BuildChain(object): 
@@ -294,7 +301,9 @@ class IkFkBuilder(object):
 		lastJnt = nameSpace + '_Jnt_3'
 		
 		#reorient joints
-		cmds.joint (jntSelect, e =1, oj = "xyz", secondaryAxisOrient= "yup", ch =1, zso =1)
+		#joint -e  -oj xyz -secondaryAxisOrient zup -ch -zso;
+		#secondary Axis to control orientation
+		cmds.joint (jntSelect, e =1, oj = "xyz", secondaryAxisOrient= "zup", ch =1, zso =1)
 		cmds.joint(lastJnt, e =1,  oj='none', ch=1, zso=1)
 		
 	def softIK_proc(self, stretch = True , Primary = 'X'):
@@ -537,36 +546,64 @@ class IkFkBuilder(object):
 		'''
 		#poleVector = startPoint + (unit( crossProduct(perpendicularVector, endVector ) ) * multVal)
 		
+		endPos = cmds.xform(endJoint, q=True, ws=True, t=True)
+		midPos = cmds.xform(midJoint, q=True, ws=True, t=True)
+		startPos = cmds.xform(startJoint, q=True, ws=True, t=True)
 		
-		#endjoint position
-		pos = cmds.xform(endJoint, q=True, ws=True, t=True)
-		a = OpenMaya.MVector(pos[0], pos[1], pos[2])
-		#startjoint position
-		pos = cmds.xform(startJoint, q=True, ws=True, t=True)
-		b = OpenMaya.MVector(pos[0], pos[1], pos[2])
+		endV = OpenMaya.MVector(endPos[0], endPos[1], endPos[2])
+		startV = OpenMaya.MVector(startPos[0], startPos[1], startPos[2])
+		midV = OpenMaya.MVector(midPos[0], midPos[1], midPos[2])
 		
-		c = b - a 
-		d = c * .5
-		e = a + d 
+		startEnd = endV - startV
+		startMid = midV - startV
 		
-		#get midjoint position
-		pos = cmds.xform(midJoint, q=True, ws=True, t=True)
-		c = OpenMaya.MVector(pos[0], pos[1], pos[2])
+		dotP = startMid * startEnd
+		proj = float(dotP) / float(startEnd.length())
+		startEndN = startEnd.normal()
+		projV = startEndN * proj
 		
-		f = c - e
-		g = f * 2
-		h = e + g 
+		arrowV = startMid - projV
+		arrowV*= 0.5
+		
+		finalV = arrowV + midV
+		
+		cross1 = startEnd ^ startMid
+		cross1.normalize()
+		
+		cross2 = cross1 ^ arrowV
+		cross2.normalize()
+		arrowV.normalize()
+		
+		matrixV = [ arrowV.x, arrowV.y, arrowV.z, 0,
+				cross1.x, cross1.y, cross1.z, 0,
+				cross2.x, cross2.y, cross2.z, 0,  
+				0, 0, 0, 1]
+		
+		matrixM = OpenMaya.MMatrix()
+		
+		OpenMaya.MScriptUtil.createMatrixFromList(matrixV, matrixM)
+		
+		matrixFn = OpenMaya.MTransformationMatrix(matrixM)
+		
+		rot = matrixFn.eulerRotation()
+		
+		
 		
 		#create and move pole vector ctrl
-		loc = cmds.spaceLocator(n=ctrlName+'_pvCtrl_1')
-		cmds.move(h.x, h.y, h.z, loc[0])
+		locatorPV = cmds.spaceLocator(n=ctrlName+'_pvCtrl_1')[0]
+		cmds.xform(locatorPV, ws=1, t= (finalV.x, finalV.y, finalV.z))
+		
+		#rotations of pole vector
+		cmds.xform(locatorPV, ws=1, rotation=((rot.x/math.pi*180.0),
+										(rot.y/math.pi*180.0),
+										(rot.z/math.pi*180.0)))
 		
 		#create polevector constraint
-		cmds.poleVectorConstraint( loc[0], handle[0] )
+		cmds.poleVectorConstraint( locatorPV, handle[0] )
 		
 		#locName = cmds.rename(loc[0], ctrlName+'_pvCtrl_1')
 		
-		ikCtrl.extend(loc)
+		ikCtrl.extend(locatorPV)
 		IkFkBuilder.ikCtrl = ikCtrl
 		return IkFkBuilder.handle
 		
@@ -651,12 +688,13 @@ def createObjects():
 		for i in range(0,3):
 			if cmds.control(attribute + "_" + str(i) + "_cmCheckBox", exists = True):
 				ptr = maya.OpenMayaUI.MQtUtil.findControl(attribute + "_" + str(i) + "_cmCheckBox")
-				radioBox = qtBindingGenerator.wrapInstance(long(ptr), QtGui.QRadioButton)
+				radioBox = qtBindingGenerator.wrapInstance(long(ptr), widgets.QRadioButton)
 				value = radioBox.isChecked()
 	for objectLine in ["prefixEdit"]:
 		ptr = maya.OpenMayaUI.MQtUtil.findControl(objectLine)
-		prefixLine = qtBindingGenerator.wrapInstance(long(ptr), QtGui.QLineEdit)
+		prefixLine = qtBindingGenerator.wrapInstance(long(ptr), widgets.QLineEdit)
 		objPrefix = prefixLine.text()
+			
 	
 	#empty vars
 	bindChain = []
@@ -696,43 +734,39 @@ def createObjects():
 	
 	#delete Locators
 	deleteLocs()
-
+	ikObjects = None
+	fkObjects = None
+	bindJnts = None
 
 def getMayaWindow():
-    '''
-    Gets maya top window
-    '''
-    import maya.OpenMayaUI as apiUI
-
-    ptr = apiUI.MQtUtil.mainWindow()
-    if ptr is not None:
-        return qtBindingGenerator.wrapInstance(long(ptr), QtGui.QWidget)
-
-    else:
-        print "No window found"				
+	'''
+	Gets maya top window
+	'''
+	main_window = [o for o in widgets.qApp.topLevelWidgets() if o.objectName()=="MayaWindow"][0]		
+	return main_window
 
 
 def createRadioLayout(font, attribute, parentLayout, value):
 	#layout for radio buttons
-	textLayout0X = QtGui.QHBoxLayout()
+	textLayout0X = widgets.QHBoxLayout()
 	parentLayout.addLayout(textLayout0X)
 	
-	label = QtGui.QLabel(attribute)
+	label = widgets.QLabel(attribute)
 	textLayout0X.addWidget(label)
 	label.setFont(font)
 	
 	
 	#radio buttons
-	radioButtons = [QtGui.QRadioButton("X"), QtGui.QRadioButton("Y"), QtGui.QRadioButton("Z")]
+	radioButtons = [widgets.QRadioButton("X"), widgets.QRadioButton("Y"), widgets.QRadioButton("Z")]
 	radioButtons[0].setChecked(True)
-	button_group = QtGui.QButtonGroup()
+	button_group = widgets.QButtonGroup()
 	
 	#add spacer
 	if value == True:
-		spacer = QtGui.QSpacerItem(60,0)
+		spacer = widgets.QSpacerItem(60,0)
 		textLayout0X.addSpacerItem(spacer)
 	else: 
-		spacer = QtGui.QSpacerItem(28,0)
+		spacer = widgets.QSpacerItem(28,0)
 		textLayout0X.addSpacerItem(spacer)
 	
 	for i in xrange(len(radioButtons)):
@@ -744,7 +778,7 @@ def createRadioLayout(font, attribute, parentLayout, value):
 		button_group.addButton(radioButtons[i], i) 
 	
 	if value == True:
-		mirrorCheckBox = QtGui.QCheckBox("Mirror")
+		mirrorCheckBox = widgets.QCheckBox("Mirror")
 		textLayout0X.addWidget(mirrorCheckBox)
 
 
@@ -760,18 +794,18 @@ def createLimb_UI():
 	
 	#create Window
 	parentWindow = getMayaWindow()
-	mainWindow = QtGui.QMainWindow(parentWindow)
+	mainWindow = widgets.QMainWindow(parentWindow)
 	mainWindow.setObjectName(windowName)
 	mainWindow.setWindowTitle("Auto Limb Creator")
 	mainWindow.setMinimumSize(340, 175)
 	mainWindow.setMaximumSize(340, 175)
 	
 	#create main widget
-	mainWidget = QtGui.QWidget()
+	mainWidget = widgets.QWidget()
 	mainWindow.setCentralWidget(mainWidget)
 	
 	#mainLayout
-	verticalLayout = QtGui.QVBoxLayout(mainWidget)
+	verticalLayout = widgets.QVBoxLayout(mainWidget)
 	
 	#font
 	font = QtGui.QFont()
@@ -782,26 +816,26 @@ def createLimb_UI():
 	createRadioLayout(font, "MirrorAxis:", verticalLayout, True)
 	
 	#layout for textField
-	textLayout01 = QtGui.QHBoxLayout()
+	textLayout01 = widgets.QHBoxLayout()
 	verticalLayout.addLayout(textLayout01)
 	
 	#create text label
-	textLineEditLabel01 = QtGui.QLabel("Prefix Name:")
+	textLineEditLabel01 = widgets.QLabel("Prefix Name:")
 	textLayout01.addWidget(textLineEditLabel01)
 	textLineEditLabel01.setFont(font)
 	
 	#create line
-	textLineEdit01 = QtGui.QLineEdit()
+	textLineEdit01 = widgets.QLineEdit()
 	textLineEdit01.setObjectName("prefixEdit")
 	textLayout01.addWidget(textLineEdit01)
 	
 	#button locs
-	createLocsButton = QtGui.QPushButton("Create Proxy Locators")
+	createLocsButton = widgets.QPushButton("Create Proxy Locators")
 	verticalLayout.addWidget(createLocsButton)
 	createLocsButton.clicked.connect(createLocs)
 	
 	#button locs
-	createLimbsButton = QtGui.QPushButton("Create Limbs From Proxy")
+	createLimbsButton = widgets.QPushButton("Create Limbs From Proxy")
 	verticalLayout.addWidget(createLimbsButton)
 	createLimbsButton.clicked.connect(createObjects)
 	
