@@ -1,6 +1,6 @@
-
 '''
 Author: Doug Schieber
+Email: DougSchieberAnimation@gmail.com
 Version 0.0.8
 
 USE:
@@ -15,12 +15,9 @@ Bugs:
 	-FK does not have transforms of joints!!! (???)
 	
 Future Additions:
-	-should there be a wrist control? third FK control seems useless. 
-	-GUI
-	-name ikGroup and ikSolver
-	-colors on controls
-	-lock control attrs
-	-scale factor on controls
+	-As is the script works for what I set out to do aside from some features. 
+	I have decided to scrap this script and start a new limb creator script. This is mostly due to how messy the structure is of this script. 
+	so from this day forward this script shall no longer change. 
 
 Credits:
 	SoftIK function by: Nick Miller
