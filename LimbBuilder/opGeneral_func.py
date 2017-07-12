@@ -34,7 +34,7 @@ import opController_func as CC
 reload(Oper)
 reload(CC)
 
-def testJoint(createJoints, locators):
+def testJoint(locators):
 	'''
 	for testing operations
 	
@@ -42,12 +42,25 @@ def testJoint(createJoints, locators):
 	objectName = "test"
 	leftRightPrefix = "l_"
 	
-
+	#create ik bind chain
 	ikJoints = Oper.opMakeJoints( prefix = objectName, limbtype = leftRightPrefix + "IK",jointOrientation = "xyz", locs = locators)
 	ikMirroredJoints = Oper.opMirrorJoints(mirrorType=2, mirrorBehaviorType=True, mirrorSearchReplace=['l_','r_'], joints=ikJoints)
 	CC.opCreateIkjointChain(joints = ikJoints, prefix = objectName)
 	CC.opCreateIkjointChain(joints = ikMirroredJoints, prefix = objectName)
-		
+	#do ik control stuff
+	
+	#create fk bind chain
+	fkJoints = Oper.opMakeJoints( prefix = objectName, limbtype = leftRightPrefix + "FK",jointOrientation = "xyz", locs = locators)
+	fkMirroredJoints = Oper.opMirrorJoints(mirrorType=2, mirrorBehaviorType=True, mirrorSearchReplace=['l_','r_'], joints=fkJoints)
+	#do fk Stuff
+	
+	#create bind chain
+	bnJoints = Oper.opMakeJoints( prefix = objectName, limbtype = leftRightPrefix + "BN",jointOrientation = "xyz", locs = locators)
+	bnMirroredJoints = Oper.opMirrorJoints(mirrorType=2, mirrorBehaviorType=True, mirrorSearchReplace=['l_','r_'], joints=bnJoints)
+	
+	#is not returning binds
+	orientConstraints = oper.opOrientBind(bind=bnJoints,fk=fkJoints,ik= ikJoints)
+	mirroredOrientConstraints = oper.opOrientBind(bind=bnMirroredJoints,fk=fkMirroredJoints,ik= ikMirroredJoints)
 	
 
 def testLocs(createLocs=True):

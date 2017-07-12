@@ -1,6 +1,6 @@
 '''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
-	Contains operations for constructing joints
+	Contains operations for constructing joints and bindings
 
 ================================================================================
 				    FUNCTIONS:
@@ -137,6 +137,5 @@ def opOrientBind(bind, ik, fk):
 		i+=1
 		#extend binders
 		binders.extend(bind02)
-		
 		
 	return binders
