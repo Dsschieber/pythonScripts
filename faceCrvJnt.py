@@ -20,12 +20,21 @@ def curveFromVertPositions(edges):
 	
 '''
 change for loop to range, add a step to do every other jnt to reduce joint amount? 
+set radius on jnts? 
+
+creates joints based on vertices positions
 '''
-def first(center = '', fromCenter = False):
+def first(center = '', fromCenter = False, step = 1):
 	vtx = cmds.ls(sl = 1, fl = 1)
 	jnt = []
-	n = 0 
-	for v in vtx:
+	n=0
+	newVtxList = []
+	#loop rebuilds vtx list, encase of high topo
+	for i in range(0, len(vtx), step):
+		newVtxList.append(vtx[i])
+	
+	#get vtx pos, set jnt to pos
+	for v in newVtxList:
 		cmds.select(cl =1) 
 		jnt.append( cmds.joint())
 		pos = cmds.xform(v , q =1, ws =1, t =1)
@@ -35,12 +44,15 @@ def first(center = '', fromCenter = False):
 			cmds.select(cl =1)
 			jntC = cmds.joint()
 			cmds.xform(jntC, ws =1, t =posC)
-			cmds.parent(jnt, jntC)
+			cmds.parent(jnt[n], jntC)
 			cmds.joint (jntC, e =1, oj = "xyz", secondaryAxisOrient= "yup", ch =1, zso =1)
 		n = n + 1
 	return jnt
 	        
-      
+'''
+creates locators using an objects position in worldspace
+
+'''
 def second(upVector = '', fromCenter = False, objects = []):
 	
 	sel = objects
@@ -56,9 +68,14 @@ def second(upVector = '', fromCenter = False, objects = []):
 		allLocs.append(loc)
 	return allLocs
 
+'''
+get the locator position on curve then attach locator or object to curve
+
+'''
+
+
 def third(crv = '', positionObjects = []):
     sel = positionObjects
-    print(sel)
     for s in sel :
         pos = cmds.xform (s ,q = 1 , ws = 1 , t = 1)
         u = getUParam(pos, crv)
@@ -102,7 +119,12 @@ def getDagPath( objectName):
         oNode = OpenMaya.MDagPath()
         selectionList.getDagPath(0, oNode)
         return oNode
-        
+'''
+for grouping controllers so they have offset
+
+'''
+
+
 def groupSpecial(objectSelection = []):
 	# group list
 	groups = []
@@ -139,19 +161,80 @@ def groupSpecial(objectSelection = []):
 						cmds.parent(stuff+'_null_0',par[0])	
 	return groups
 
+'''
 
+UI will be implemented later
+prefix will also come later
+
+instructions: select an edge and make some nice face controls
+
+possible create a nurbs surface for sliding? 
+
+'''
+
+
+#edge is selected
 edges = cmds.ls(sl=True)
+
+#convert selection to vertices
 vertices = cmds.polyListComponentConversion(edges, fe=True, tv=True)
+
+#create a curve from edge
 curves = curveFromVertPositions(edges)
-curveObj = cmds.rename( curves, "tempEdge")
+curveObj = cmds.rename( curves, "curve_hiRez_crv")
 cmds.select(vertices)
+cmds.delete(curveObj, ch=True)
+
+#limit the amount of joints for hiRez topo
+limitHiRexJoints = 1
 jointsObjects = []
-jointsObjects = first()
+
+#var determines if there will be a aim constraint based crv or a parent based. 
+#center would best be used for eyes where a center can easily be obtained. 
+findYourCenter = False
+upVecForCenter = 'upVec'
+centerLocator = 'obj_loc'
+jointsObjects = first(center = centerLocator, fromCenter = findYourCenter, step = limitHiRexJoints)
+jntParent = cmds.listRelatives(jointsObjects, p=True)
+#rebuildCurve -ch 1 -rpo 0 -rt 0 -end 1 -kr 0 -kcp 0 -kep 1 -kt 0 -s 3 -d 3 -tol 0.01 "curve_hiRez_crv";
+
 #attach to locs or attach to nulls? 
-locators = second(upVector = '', fromCenter = False, objects = jointsObjects)
+#provide second loc for up vector
+locators = second(upVector = upVecForCenter, fromCenter = findYourCenter, objects = jointsObjects)
 #sel = cmds.ls(sl=True)
 #cmds.select(objects)
 third(curveObj, locators)
-for i in range(len(jointsObjects)):
-	cmds.parent(jointsObjects[i], locators[i])
-groupObjects = groupSpecial(locators)
+
+#clean up, vars for groups would be nice
+if (findYourCenter == False):
+	for i in range(len(jointsObjects)):
+		cmds.parent(jointsObjects[i], locators[i])
+	cmds.group(locators, n='locator_grp')
+	
+else:
+	#parent under center locator?
+	cmds.group(jntParent, n='joint_grp')
+	cmds.group(locators, n='locator_grp')
+	print('parent not needed')
+
+#create a lowRez Curve for controllers
+tempCrv = cmds.rebuildCurve(curveObj, ch=1, rpo=0,rt=0,end=1, kr=0,kcp=0,kep=1,kt=0,s=2,d=3,tol=0.01)
+cmds.delete(tempCrv, ch=True)
+lowRezCurve = cmds.rename(tempCrv[0],"curve_loRez_crv")
+cmds.wire( curveObj , w = lowRezCurve, gw= False, en=1.000000, ce=0.000000, li=0.000000, dds=[(0, 100)], n='lowRez_wire')
+
+#get the low resolution curves cvs
+cmds.select(lowRezCurve + '.cv[0:4]')
+ctrlJoint = first()
+
+#skin Control joints to lowRezCurve 
+
+#create Controls for CtrlJnts with offset
+
+#grp ctrls with an offset
+
+#parent ctrl joints
+
+#group everything to where it will need to be grouped (for scaling and organization)
+
+#voila it is done
