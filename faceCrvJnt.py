@@ -547,10 +547,10 @@ def runControlCreator(*args):
 	# ----------------------------------------------------------------------------------
 	curves = curveFromVertPositions(edges)
 	hiRezCurve = cmds.rename( curves, prefix + "_hiRez_crv") #rename var to hiRezCurve
-	hiRezCurveGrp = cmds.group(curveObj, n=curveObj+'_grp')
+	hiRezCurveGrp = cmds.group(hiRezCurve, n=hiRezCurve+'_grp')
 	
-	cmds.delete(curveObj, ch=True)
-	cmds.select(curveObj)
+	cmds.delete(hiRezCurve, ch=True)
+	cmds.select(hiRezCurve)
 	#add first and last cvs just incase of step?
 	cmds.SelectCurveCVsAll()
 	
@@ -605,7 +605,7 @@ def runControlCreator(*args):
 	cmds.delete(tempCrv, ch=True)
 	lowRezCurve = cmds.rename(tempCrv[0],prefix + "curve_loRez_crv")
 	lowRezCurveGrp = cmds.group(lowRezCurve, n=lowRezCurve+'_grp')
-	cmds.wire( curveObj , w = lowRezCurve, gw= False, en=1.000000, ce=0.000000, li=0.000000, dds=[(0, 100)], n=prefix + 'lowRez_wire')
+	cmds.wire( hiRezCurve , w = lowRezCurve, gw= False, en=1.000000, ce=0.000000, li=0.000000, dds=[(0, 100)], n=prefix + 'lowRez_wire')
 	
 	#get the low resolution curves cvs and create control joints
 	ctrlJNTs = createControlJoints(lowRezCurve, prefix)
