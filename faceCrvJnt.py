@@ -1,16 +1,42 @@
+
 '''
 Author @Doug Schieber
 Email DougSchieberAnimation@gmail.com
 
+---------- TO USE ----------
+select a polygonal edge
+UI will create facial controls based off edge.
+includes options for facial controls construction including attaching joints to a nurbs surface or using a center locator for rotation restraints. 
 
-Functions
--Takes edge information and creates an edge with joints and controls attached
+import nmFaceControls as fc
+fc.facialControlUI()
 
-Future Additions
--attach to nurbs surface
--use center locator pivot
--create upVec and centerLocator
--attach objects to parent (say a jaw joint or etc)
+
+----------------------------
+
+----Functions----
+
+curveFromVertPositions
+first
+second
+getUParam
+getDagPath
+faceCtrlCreate
+groupSpecial
+attachToNurbsSurface
+loadInTextField
+createNurbsAttachSurface
+createLocatorsUpCenter
+clearTextField
+facialControlUI
+objectPrefix
+runControlCreator
+
+----Additions/Bugs----
+-surface slide joints are in a random order. This is due to the vertex order, should change to go off of curve.cv (fixed)
+-runControlCreator method should be broken into smaller parts (added dividers to determine where to make functions)
+-rename methods
+-different UI setup
 
 '''
 
@@ -23,7 +49,7 @@ import maya.mel as mel
 creates a curve from edge selection
 
 '''
-def curveFromVertPositions(edges):
+def curveFromVertPositions(edges):	
 	
 	getEdges= edges
 	cmds.select(getEdges)
@@ -32,13 +58,16 @@ def curveFromVertPositions(edges):
 	return curveObj 
 	
 '''
-change for loop to range, add a step to do every other jnt to reduce joint amount? 
-set radius on jnts? 
+creates joints based on vertices positions or curve.cvs
 
-creates joints based on vertices positions
+
 '''
+	
+
 def first(center = '', fromCenter = False, step = 1):
+	
 	vtx = cmds.ls(sl = 1, fl = 1)
+	#is selection curve?
 	jnt = []
 	n=0
 	newVtxList = []
@@ -52,7 +81,7 @@ def first(center = '', fromCenter = False, step = 1):
 		jnt.append( cmds.joint())
 		pos = cmds.xform(v , q =1, ws =1, t =1)
 		cmds.xform(jnt[n], ws =1, t =pos)
-		if fromCenter == True:
+		if fromCenter:
 			posC = cmds.xform(center, q =1, ws =1, t =1)
 			cmds.select(cl =1)
 			jntC = cmds.joint()
@@ -75,7 +104,7 @@ def second(upVector = '', fromCenter = False, objects = []):
 		pos = cmds.xform(s, q =1, ws =1, t =1)
 		cmds.xform(loc, ws =1, t =pos)
 		#aimconstraint
-		if fromCenter == True:
+		if fromCenter:
 			par =cmds.listRelatives(s, p =1 ) [0]
 			cmds.aimConstraint(loc, par, mo=1, weight=1, aimVector=(1,0,0), upVector=(0,1,0), worldUpType = "object", worldUpObject = upVector)
 		allLocs.append(loc)
@@ -193,7 +222,11 @@ def groupSpecial(objectSelection = []):
 						cmds.parent(stuff+'_null_0',par[0])	
 	return groups
 
-#add prefix argument
+'''
+attaches joints to a nurbs surface using a surface vector for position. 
+
+
+'''
 def attachToNurbsSurface(prefix = '', nurbSurface = '', surfaceVec = []):
 	#nurbs surface to slide on
 	nurbsSurface = cmds.listRelatives(nurbSurface, c=True)
@@ -201,6 +234,7 @@ def attachToNurbsSurface(prefix = '', nurbSurface = '', surfaceVec = []):
 	surfacePoint = []
 	num = 0
 	jnt = []
+	
 	for i in range(len(surfaceVec)):
 		jnt.append(cmds.joint())
 		cmds.parent(jnt[i], w = True)
@@ -210,7 +244,8 @@ def attachToNurbsSurface(prefix = '', nurbSurface = '', surfaceVec = []):
 		surfacePoint.append(jntRN)
 		num = num + 1
 	
-	num = 0
+	# ----------------------------------------------------------------------------------
+	num = 0 # why is num here? 
 	for i in range(len(surfaceVec)):
 		#information Nodes
 		decomposeMatrix = cmds.createNode('decomposeMatrix', n = surfaceVec[i] + '_decomposeMatrix')
@@ -222,7 +257,6 @@ def attachToNurbsSurface(prefix = '', nurbSurface = '', surfaceVec = []):
 		#end product nodes
 		fourByFourMatrix = cmds.createNode( 'fourByFourMatrix', n = surfaceVec[i] + '_fourByFourMatrix' )
 		decompose4x4Matrix = cmds.createNode( 'decomposeMatrix', n = surfaceVec[i] + '_decompose4x4Matrix' )
-		
 		#set vectorProduct to cross product operation
 		cmds.setAttr(ax_Z+".operation", 2)
 		cmds.setAttr(ax_X+".operation", 2)
@@ -266,18 +300,11 @@ def attachToNurbsSurface(prefix = '', nurbSurface = '', surfaceVec = []):
 
 '''
 
-UI will be implemented later
-
-instructions: select an edge and make some nice face controls
-
-Everything below should be broken up into functions for organization. 
+this function loads in the nurbs surface in to the GUI
 
 
 '''
 def loadInTextField(centerLocator):
-	'''
-	this function loads in the nurbs surface
-	'''
 	# Sel
 	sel = cmds.ls(sl=True)
 	# check
@@ -300,6 +327,11 @@ def loadInTextField(centerLocator):
 			else:
 				print('error','Selection Error, need a Nurbs Surface or Locator to load in.')
 
+'''
+creates a plain nurbs surface. Optionally you can use your own nurbs surface
+
+'''
+
 def createNurbsAttachSurface(*args):
 	prefix = cmds.textFieldGrp("prefixTextField", query = True, text = True)
 	uPatches = cmds.intSliderGrp ( "uvFieldNameU", query = True, value = True)
@@ -307,6 +339,12 @@ def createNurbsAttachSurface(*args):
 	nurbsObject = cmds.nurbsPlane( p=[0, 0, 0], ax=[0, 1, 0], w=1, lr=1, d=3, u=uPatches, v=vPatches, ch=1, n=prefix+'_attachSurface#')
 	cmds.textFieldGrp('nurbsSurfaceTextField',e=True,tx=nurbsObject[0])
 	print('complete','Slide Nurbs Surface loaded.')
+
+'''
+creates an up vector locator and a center locator
+
+
+'''
 
 def createLocatorsUpCenter(*args):
 	prefix = cmds.textFieldGrp("prefixTextField", query = True, text = True)
@@ -317,90 +355,18 @@ def createLocatorsUpCenter(*args):
 	cmds.textFieldGrp('upVecLocTextField',e=True,tx=upVecLocator[0])
 	print('complete','Locators Loaded.')
 
+'''
+clears text fields in GUI
+
+
+'''
 def clearTextField(*args):
 	cmds.textFieldGrp('nurbsSurfaceTextField',e=True,tx='')
 	cmds.textFieldGrp('centerLocTextField',e=True,tx='')
 	cmds.textFieldGrp('upVecLocTextField',e=True,tx='')
 
-def facialControlUI():
-	#create Window
-	faceCtrlWindowName = "faceCtrlWindowUI"
-	if (cmds.window(faceCtrlWindowName, exists=True )):
-		cmds.deleteUI( faceCtrlWindowName)
-	faceCtrlWindow = cmds.window(faceCtrlWindowName, title="Face Controls Creator Menu", maximizeButton=True, sizeable=True)
-	
-	#load In Locators and Nurbs
-	cmds.columnLayout('mainCol')
-	cmds.tabLayout("tabLayoutName01", p = 'mainCol')
-	cmds.columnLayout("columnLayoutName01", adjustableColumn = True, p='tabLayoutName01')
-	cmds.tabLayout("tabLayoutName01", e=True, tl=[('columnLayoutName01','GEN')])
-	cmds.frameLayout(  "nurbsLayoutName01", label = "Nurbs Surface Editor", collapsable = True, parent = "columnLayoutName01")
-	
-	cmds.text(l='', h = 10, p="nurbsLayoutName01")
-	cmds.textFieldGrp( "nurbsSurfaceTextField", l = "Loaded Nurbs Surface:    ", ed = False, parent = "nurbsLayoutName01")
-	cmds.text(l='', h = 10, p="nurbsLayoutName01")
-	cmds.intSliderGrp ( "uvFieldNameU", label = "    U Patches:", field = True, fieldMinValue = 0, fieldMaxValue = 10, minValue = 1, maxValue = 10, columnWidth3 = [80, 50, 50], columnAlign3 = ["left", "both", "left"], value = 1, parent = "nurbsLayoutName01")
-	cmds.intSliderGrp ( "uvFieldNameV", label = "    V Patches:", field = True, fieldMinValue = 0, fieldMaxValue = 10, minValue = 1, maxValue = 10, columnWidth3 = [80, 50, 50], columnAlign3 = ["left", "both", "left"], value = 1, parent = "nurbsLayoutName01")
-	cmds.separator(h = 20, p="nurbsLayoutName01")
-	
-	
-	cmds.rowLayout( "nurbsButtonGridLayout", numberOfColumns=5, columnWidth5=[20, 120, 80, 120, 20], p = "nurbsLayoutName01")
-	cmds.separator( p= "nurbsButtonGridLayout", h = 80)
-	cmds.button(l = 'Load Nurbs Surface', c= loadInTextField, parent = "nurbsButtonGridLayout", h = 60)
-	cmds.separator( p= "nurbsButtonGridLayout", h = 80)
-	cmds.button( l = 'Create Nurbs Surface', c= createNurbsAttachSurface, parent = "nurbsButtonGridLayout", h = 60)
-	cmds.separator( p= "nurbsButtonGridLayout", h = 80)
-	cmds.text(l='', h = 10, p="nurbsLayoutName01")
-	
-	cmds.frameLayout ("locsLayoutName01", label = "Locator Objects", collapsable = True, parent = "columnLayoutName01")
-	
-	cmds.text(l='', h = 10, p="locsLayoutName01")
-	cmds.textFieldGrp( "centerLocTextField", l = "Loaded Center Object:     ", ed = False, parent = "locsLayoutName01")
-	cmds.rowLayout( "centerButtonRowLayout", numberOfColumns=3, columnWidth3=[130, 120, 120], p = "locsLayoutName01")
-	cmds.text(l='', h = 10, p="centerButtonRowLayout")
-	cmds.text(l='', h = 10, p="centerButtonRowLayout")
-	cmds.button( l = 'Load Center Locator', c= "loadInTextField(True)", parent = "centerButtonRowLayout", h=30, w = 120 )
-	
-	cmds.separator( p= "locsLayoutName01", h = 10)
-	
-	
-	cmds.textFieldGrp( "upVecLocTextField", l = "Loaded UpVec Object:     ", ed = False, parent = "locsLayoutName01")
-	
-	cmds.rowLayout( "upVecButtonRowLayout", numberOfColumns=3, columnWidth3=[130, 120, 120], p = "locsLayoutName01")
-	cmds.text(l='', h = 10, p="upVecButtonRowLayout")
-	cmds.text(l='', h = 10, p="upVecButtonRowLayout")
-	cmds.button(l = 'Load UpVec Locator', c= "loadInTextField(False)", parent = "upVecButtonRowLayout", h=30, w = 120)
-	
-	cmds.separator( p= "locsLayoutName01", h = 10)
-	
-	cmds.button(l = 'Create UpVec and Center Locator', c= createLocatorsUpCenter, parent = "locsLayoutName01")
-	cmds.text(l='', h = 10, p="locsLayoutName01")
-	
-	
-	cmds.frameLayout("sizeLayout01", label = "Extras", collapsable = True, parent = "columnLayoutName01")
-	cmds.gridLayout( "ctrlSizeLayout01", nr=1, cw = 103, p = 'sizeLayout01')
-	cmds.text(l='Controller Size:', h = 20, p="ctrlSizeLayout01")
-	cmds.floatField("floatFieldName", minValue = 0.0, maxValue = 100.0, precision = 2, value = 1.0, parent = "ctrlSizeLayout01")
-	
-	cmds.intSliderGrp ( "intFieldName", label = "       Joint Limiter:", field = True, fieldMinValue = 0, fieldMaxValue = 10, minValue = 1, maxValue = 10, columnWidth3 = [100, 50, 50], columnAlign3 = ["left", "both", "left"], value = 1, parent = "sizeLayout01")
-	cmds.text(l='', h = 10, p="sizeLayout01")
-	
-	cmds.separator(p='columnLayoutName01')
-	cmds.text(l='', h = 10, p="columnLayoutName01")
-	cmds.textFieldGrp( "prefixTextField", l = "Prefix:     ", cw2 = [100, 250], parent = "columnLayoutName01")
-	cmds.text(l='', h = 10, p="columnLayoutName01")
-	cmds.button(l = 'Clear Fields', c = clearTextField, p = "columnLayoutName01")
-	cmds.button(l = 'Select a Polygon Edge to create controls', c = runControlCreator, p = "columnLayoutName01")
-	
-	#show Window
-	cmds.showWindow(faceCtrlWindowName)
-	
-	# This is a workaround to get MEL global variable value in Python
-	gMainWindow = mel.eval('$tmpVar=$gMainWindow')
-	cmds.window( faceCtrlWindowName, edit=True)
-
 '''
-check for duplicate names
+checks for duplicate names
 
 '''
 
@@ -425,26 +391,150 @@ def objectPrefix():
 		prefix = prefix + '_' + str(num)
 	return prefix 
 
+
+'''
+main UI window
+
+'''
+
+def facialControlUI():
+	#create Window
+	# ----------------------------------------------------------------------------------
+	faceCtrlWindowName = "faceCtrlWindowUI"
+	if (cmds.window(faceCtrlWindowName, exists=True )):
+		cmds.deleteUI( faceCtrlWindowName)
+	faceCtrlWindow = cmds.window(faceCtrlWindowName, title="Face Controls Creator Menu", maximizeButton=True, sizeable=True)
+	
+	#Nurbs Layout
+	# ----------------------------------------------------------------------------------
+	cmds.columnLayout('mainCol')
+	cmds.tabLayout("tabLayoutName01", p = 'mainCol')
+	cmds.columnLayout("columnLayoutName01", adjustableColumn = True, p='tabLayoutName01')
+	cmds.tabLayout("tabLayoutName01", e=True, tl=[('columnLayoutName01','GEN')])
+	cmds.frameLayout(  "nurbsLayoutName01", label = "Nurbs Surface Editor", collapsable = True, parent = "columnLayoutName01")
+	
+	cmds.text(l='', h = 10, p="nurbsLayoutName01")
+	cmds.textFieldGrp( "nurbsSurfaceTextField", l = "Loaded Nurbs Surface:    ", ed = False, parent = "nurbsLayoutName01")
+	cmds.text(l='', h = 10, p="nurbsLayoutName01")
+	cmds.intSliderGrp ( "uvFieldNameU", label = "    U Patches:", field = True, fieldMinValue = 0, fieldMaxValue = 10, minValue = 1, maxValue = 10, columnWidth3 = [80, 50, 50], columnAlign3 = ["left", "both", "left"], value = 1, parent = "nurbsLayoutName01")
+	cmds.intSliderGrp ( "uvFieldNameV", label = "    V Patches:", field = True, fieldMinValue = 0, fieldMaxValue = 10, minValue = 1, maxValue = 10, columnWidth3 = [80, 50, 50], columnAlign3 = ["left", "both", "left"], value = 1, parent = "nurbsLayoutName01")
+	cmds.separator(h = 20, p="nurbsLayoutName01")
+	
+	
+	cmds.rowLayout( "nurbsButtonGridLayout", numberOfColumns=5, columnWidth5=[20, 120, 80, 120, 20], p = "nurbsLayoutName01")
+	cmds.separator( p= "nurbsButtonGridLayout", h = 80)
+	cmds.button(l = 'Load Nurbs Surface', c= loadInTextField, parent = "nurbsButtonGridLayout", h = 60)
+	cmds.separator( p= "nurbsButtonGridLayout", h = 80)
+	cmds.button( l = 'Create Nurbs Surface', c= createNurbsAttachSurface, parent = "nurbsButtonGridLayout", h = 60)
+	cmds.separator( p= "nurbsButtonGridLayout", h = 80)
+	cmds.text(l='', h = 10, p="nurbsLayoutName01")
+	
+	#Locator layout
+	# ----------------------------------------------------------------------------------
+	cmds.frameLayout ("locsLayoutName01", label = "Locator Objects", collapsable = True, parent = "columnLayoutName01")
+	
+	cmds.text(l='', h = 10, p="locsLayoutName01")
+	cmds.textFieldGrp( "centerLocTextField", l = "Loaded Center Object:     ", ed = False, parent = "locsLayoutName01")
+	cmds.rowLayout( "centerButtonRowLayout", numberOfColumns=3, columnWidth3=[130, 120, 120], p = "locsLayoutName01")
+	cmds.text(l='', h = 10, p="centerButtonRowLayout")
+	cmds.text(l='', h = 10, p="centerButtonRowLayout")
+	cmds.button( l = 'Load Center Locator', c= "loadInTextField(True)", parent = "centerButtonRowLayout", h=30, w = 120 )
+	
+	cmds.separator( p= "locsLayoutName01", h = 10)
+	
+	
+	cmds.textFieldGrp( "upVecLocTextField", l = "Loaded UpVec Object:     ", ed = False, parent = "locsLayoutName01")
+	
+	cmds.rowLayout( "upVecButtonRowLayout", numberOfColumns=3, columnWidth3=[130, 120, 120], p = "locsLayoutName01")
+	cmds.text(l='', h = 10, p="upVecButtonRowLayout")
+	cmds.text(l='', h = 10, p="upVecButtonRowLayout")
+	cmds.button(l = 'Load UpVec Locator', c= "loadInTextField(False)", parent = "upVecButtonRowLayout", h=30, w = 120)
+	
+	cmds.separator( p= "locsLayoutName01", h = 10)
+	
+	cmds.button(l = 'Create UpVec and Center Locator', c= createLocatorsUpCenter, parent = "locsLayoutName01")
+	cmds.text(l='', h = 10, p="locsLayoutName01")
+	
+	#extras
+	# ----------------------------------------------------------------------------------
+	cmds.frameLayout("sizeLayout01", label = "Extras", collapsable = True, parent = "columnLayoutName01")
+	cmds.gridLayout( "ctrlSizeLayout01", nr=1, cw = 103, p = 'sizeLayout01')
+	cmds.text(l='Controller Size:', h = 20, p="ctrlSizeLayout01")
+	cmds.floatField("floatFieldName", minValue = 0.0, maxValue = 100.0, precision = 2, value = 1.0, parent = "ctrlSizeLayout01")
+	
+	cmds.intSliderGrp ( "intFieldName", label = "       Joint Limiter:", field = True, fieldMinValue = 0, fieldMaxValue = 10, minValue = 1, maxValue = 10, columnWidth3 = [100, 50, 50], columnAlign3 = ["left", "both", "left"], value = 1, parent = "sizeLayout01")
+	cmds.text(l='', h = 10, p="sizeLayout01")
+	
+	
+	#main function layout
+	# ----------------------------------------------------------------------------------
+	cmds.separator(p='columnLayoutName01')
+	cmds.text(l='', h = 10, p="columnLayoutName01")
+	cmds.textFieldGrp( "prefixTextField", l = "Prefix:     ", cw2 = [100, 250], parent = "columnLayoutName01")
+	cmds.text(l='', h = 10, p="columnLayoutName01")
+	cmds.button(l = 'Clear Fields', c = clearTextField, p = "columnLayoutName01")
+	cmds.button(l = 'Select a Polygon Edge to create controls', c = runControlCreator, p = "columnLayoutName01")
+	
+	#show Window
+	# ----------------------------------------------------------------------------------
+	cmds.showWindow(faceCtrlWindowName)
+	
+	# This is a workaround to get MEL global variable value in Python
+	gMainWindow = mel.eval('$tmpVar=$gMainWindow')
+	cmds.window( faceCtrlWindowName, edit=True)
+
+
+def cleanUpControls(ctrls, ctrlJNTgrp):
+	
+	colorNum = 14
+	
+	for i in range(len(ctrls)):
+		cmds.setAttr(ctrls[i]+'.sx', l=True, k=False, cb=False)
+		cmds.setAttr(ctrls[i]+'.sy', l=True, k=False, cb=False)
+		cmds.setAttr(ctrls[i]+'.sz', l=True, k=False, cb=False)
+		cmds.setAttr(ctrls[i]+'.v', l=True, k=False, cb=False)
+		cmds.parentConstraint(ctrls[i], ctrlJNTgrp[i])
+		cmds.setAttr(ctrls[i]+".overrideEnabled",1)
+		cmds.setAttr(ctrls[i]+".overrideColor",colorNum)
+
+def createControlJoints(lowRezCurve, prefix):
+	cmds.select(lowRezCurve + '.cv[0:4]')
+	ctrlTmpJoints = first()
+	num = len(ctrlTmpJoints)
+	ctrlJNTs = []
+	
+	#rename control joints
+	for each in ctrlTmpJoints:
+		cmds.setAttr(each + '.v', 0)
+		ctrlJNTs.append(cmds.rename(each, prefix + '_ctrlJNT_' + str(len(ctrlTmpJoints) - num)))
+		num = num - 1
+	return ctrlJNTs
+
+'''
+main function
+
+'''
+
 def runControlCreator(*args):
 		
-	#hierarchy groups
+	#main vars
+	# ----------------------------------------------------------------------------------
 	hierarchyGrp = []
 	createSliderJoints = False
 	findYourCenter = False
 	controlScale = cmds.floatField( "floatFieldName", query = True, value = True)
-	#why does maya hate unicode?
 	upVecForCenter = cmds.textFieldGrp("upVecLocTextField", query = True, text = True)
 	centerLocator = cmds.textFieldGrp("centerLocTextField", query = True, text = True)
 	nurbSurface = cmds.textFieldGrp("nurbsSurfaceTextField", query = True, text = True)
+	#checks if vars are empty then sets a booleen var
 	if upVecForCenter != '' and centerLocator != '':
 		findYourCenter = True
 	if nurbSurface != '':
 		createSliderJoints = True
-	#limit the amount of joints for hiRez topo
 	limitHiRexJoints = cmds.intSliderGrp ( "intFieldName", query = True, value = True)
 	tmpJNTs = []
 	
-	#edge is selected
+	#edge in selection
 	edges = cmds.ls(sl=True)
 	
 	#convert selection to vertices
@@ -454,32 +544,38 @@ def runControlCreator(*args):
 	prefix = objectPrefix()
 	
 	#create a curve from edge
+	# ----------------------------------------------------------------------------------
 	curves = curveFromVertPositions(edges)
-	curveObj = cmds.rename( curves, prefix + "_hiRez_crv")
+	hiRezCurve = cmds.rename( curves, prefix + "_hiRez_crv") #rename var to hiRezCurve
 	hiRezCurveGrp = cmds.group(curveObj, n=curveObj+'_grp')
-	cmds.select(vertices)
+	
 	cmds.delete(curveObj, ch=True)
+	cmds.select(curveObj)
+	#add first and last cvs just incase of step?
+	cmds.SelectCurveCVsAll()
 	
 	
 	#var determines if there will be a aim constraint based crv or a parent based. 
 	#center would best be used for eyes where a center can easily be obtained. 
+	#create bind joints
+	# ----------------------------------------------------------------------------------
 	tmpJNTs = first(center = centerLocator, fromCenter = findYourCenter, step = limitHiRexJoints)
 	bindJNTs = []
 	num = len(tmpJNTs)
-	rnTempJnts = []
 	
 	#rebuild list for naming
 	for each in tmpJNTs:
 		tEmPbLaH = cmds.listRelatives(each, p=True)
-		if (findYourCenter == True):
+		if findYourCenter:
 			cmds.rename(tEmPbLaH, prefix + '_aimJNT_' + str(len(tmpJNTs) - num))
 		bindJNTs.append(cmds.rename(each, prefix + '_bnJNT_' + str(len(tmpJNTs) - num)))
 		num = num - 1
 	
 	jntParent = cmds.listRelatives(bindJNTs, p=True)
 	
-	#attach to locs or attach to nulls? 
-	#provide second loc for up vector
+	
+	#create locators 
+	# ----------------------------------------------------------------------------------
 	locators = second(upVector = upVecForCenter, fromCenter = findYourCenter, objects = bindJNTs)
 	pinnedLocs = []
 	num = len(locators)
@@ -487,41 +583,35 @@ def runControlCreator(*args):
 	for each in locators:
 		pinnedLocs.append(cmds.rename(each, prefix + '_loc_' + str(len(locators) - num)))
 		num = num - 1
-	#sel = cmds.ls(sl=True)
-	#cmds.select(objects)
-	third(curveObj, pinnedLocs)
+	#pin locators to curve
+	third(hiRezCurve, pinnedLocs)
 	
-	#clean up, vars for groups would be nice
-	if (findYourCenter == False):
-		for i in range(len(bindJNTs)):
-			cmds.parent(bindJNTs[i], pinnedLocs[i])
-		hierarchyGrp.append(cmds.group(pinnedLocs, n=prefix + 'locator_grp'))
-		
-	else:
+	
+	#clean up locs into a group
+	if findYourCenter:
 		#parent under center locator?
 		hierarchyGrp.append(cmds.group(jntParent, n=prefix + 'joint_grp'))
 		hierarchyGrp.append(cmds.group(pinnedLocs, n=prefix +'locator_grp'))
 		print('parent not needed')
+	else:
+		for i in range(len(bindJNTs)):
+			cmds.parent(bindJNTs[i], pinnedLocs[i])
+		hierarchyGrp.append(cmds.group(pinnedLocs, n=prefix + 'locator_grp'))
+	
 	
 	#create a lowRez Curve for controllers
-	tempCrv = cmds.rebuildCurve(curveObj, ch=1, rpo=0,rt=0,end=1, kr=0,kcp=0,kep=1,kt=0,s=2,d=3,tol=0.01)
+	# ----------------------------------------------------------------------------------
+	tempCrv = cmds.rebuildCurve(hiRezCurve, ch=1, rpo=0,rt=0,end=1, kr=0,kcp=0,kep=1,kt=0,s=2,d=3,tol=0.01)
 	cmds.delete(tempCrv, ch=True)
 	lowRezCurve = cmds.rename(tempCrv[0],prefix + "curve_loRez_crv")
 	lowRezCurveGrp = cmds.group(lowRezCurve, n=lowRezCurve+'_grp')
 	cmds.wire( curveObj , w = lowRezCurve, gw= False, en=1.000000, ce=0.000000, li=0.000000, dds=[(0, 100)], n=prefix + 'lowRez_wire')
 	
-	#get the low resolution curves cvs
-	cmds.select(lowRezCurve + '.cv[0:4]')
-	ctrlTmpJoints = first()
-	num = len(ctrlTmpJoints)
-	ctrlJNTs = []
+	#get the low resolution curves cvs and create control joints
+	ctrlJNTs = createControlJoints(lowRezCurve, prefix)
 	
-	#rename control joints
-	for each in ctrlTmpJoints:
-		ctrlJNTs.append(cmds.rename(each, prefix + '_ctrlJNT_' + str(len(ctrlTmpJoints) - num)))
-		num = num - 1
-	
-	#skin Control joints to lowRezCurve 
+	#skin Control joints to lowRezCurve and clean up to group
+	# ----------------------------------------------------------------------------------
 	ctrlJNTgrp = groupSpecial(ctrlJNTs)
 	hierarchyGrp.append(cmds.group(ctrlJNTgrp, n=prefix +'_ctrlJNTs_grp'))
 	cmds.skinCluster(ctrlJNTs, lowRezCurve, dr=4.0, nw=1, mi=1, n = prefix + 'skinClstr')
@@ -530,33 +620,25 @@ def runControlCreator(*args):
 	ctrls = faceCtrlCreate(prefix = prefix, objects = ctrlJNTgrp, controlSize = controlScale)
 	ctrlNulls = groupSpecial(ctrls)
 	hierarchyGrp.append(cmds.group(ctrlNulls, n=prefix+'_ctrl_grp'))
-	#color variable
-	colorNum = 14
 	
 	#lock and hide controls, parent to ctrl jnts
-	for i in range(len(ctrls)):
-		cmds.setAttr(ctrls[i]+'.sx', l=True, k=False, cb=False)
-		cmds.setAttr(ctrls[i]+'.sy', l=True, k=False, cb=False)
-		cmds.setAttr(ctrls[i]+'.sz', l=True, k=False, cb=False)
-		cmds.setAttr(ctrls[i]+'.v', l=True, k=False, cb=False)
-		cmds.parentConstraint(ctrls[i], ctrlJNTgrp[i])
-		cmds.setAttr(ctrls[i]+".overrideEnabled",1)
-		cmds.setAttr(ctrls[i]+".overrideColor",colorNum)
+	# ----------------------------------------------------------------------------------
+	cleanUpControls(ctrls, ctrlJNTgrp)
 	
 	
 	#group everything to where it will need to be grouped (for scaling and organization)
-	if (findYourCenter == False):
-		scaleGrp = cmds.group(hierarchyGrp[1], hierarchyGrp[2], n=prefix+'_scale_grp')
-		nonDeformableGrp = cmds.group(hiRezCurveGrp, lowRezCurveGrp, hierarchyGrp[0], n = prefix + '_nonDeform_grp')
-		for each in bindJNTs:
-			cmds.scaleConstraint(scaleGrp, each)
-	else:
+	# ----------------------------------------------------------------------------------
+	if findYourCenter:
 		cmds.parent(hierarchyGrp[0], hierarchyGrp[2], hierarchyGrp[3], upVecForCenter, centerLocator)
 		nonDeformableGrp = cmds.group(hiRezCurveGrp, lowRezCurveGrp, hierarchyGrp[1], n = prefix + '_nonDeform_grp')
 		centerPivotScaleGrp = cmds.group(centerLocator, n = prefix + '_scale_grp')
-		
+	else:
+		scaleGrp = cmds.group(hierarchyGrp[1], hierarchyGrp[2], n=prefix+'_scale_grp')
+		nonDeformableGrp = cmds.group(hiRezCurveGrp, lowRezCurveGrp, hierarchyGrp[0], n = prefix + '_nonDeform_grp')
+		for each in bindJNTs:
+			cmds.scaleConstraint(scaleGrp, each)		
 	
-	if (createSliderJoints == True):
+	if createSliderJoints:
 		sliderJoints = attachToNurbsSurface(prefix, nurbSurface, bindJNTs)
 		sliderJointsGrp = cmds.group(sliderJoints, n='prefix_sliderJNT_grp')
 		cmds.parent(sliderJointsGrp, nonDeformableGrp )
