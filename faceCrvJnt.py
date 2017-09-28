@@ -19,6 +19,7 @@ fc.facialControlUI()
 curveFromVertPositions
 first
 second
+third
 getUParam
 getDagPath
 faceCtrlCreate
@@ -37,6 +38,9 @@ runControlCreator
 -runControlCreator method should be broken into smaller parts (added dividers to determine where to make functions)
 -rename methods
 -different UI setup
+-bindjoints need aimconstraints to maintain rotation. (IMPORTANT) This can be seen when parented to hierarchical controls. (POSSIBLY FIXED) 
+	Note: Far as I can tell the bind joints seem to move with everything in the scale group now. 
+-sliderjoints should be the only bind joints in the attach to nurbs surface. 
 
 '''
 
@@ -119,13 +123,48 @@ get the locator position on curve then attach locator or object to curve
 def third(crv = '', positionObjects = []):
     sel = positionObjects
     for s in sel :
-        pos = cmds.xform (s ,q = 1 , ws = 1 , t = 1)
-        u = getUParam(pos, crv)
-        name = s.replace("_LOC" , "_PCI")
-        pci = cmds.createNode("pointOnCurveInfo" , n = name)
-        cmds.connectAttr(crv + '.worldSpace' , pci + '.inputCurve')
-        cmds.setAttr(pci + '.parameter' , u )
-        cmds.connectAttr( pci + '.position' , s + '.t')
+		pos = cmds.xform (s ,q = 1 , ws = 1 , t = 1) 
+		#cross Product nodes
+		ax_Z = cmds.createNode( 'vectorProduct', n = str(s) + '_vectorProduct_ax_Z' )
+		ax_X = cmds.createNode( 'vectorProduct', n = str(s) + '_vectorProduct_ax_X' )
+		#end product nodes
+		fourByFourMatrix = cmds.createNode( 'fourByFourMatrix', n = str(s) + '_fourByFourMatrix' )
+		decompose4x4Matrix = cmds.createNode( 'decomposeMatrix', n = str(s) + '_decompose4x4Matrix' )
+		u = getUParam(pos, crv)
+		#name = s.replace("_LOC" , "_PCI")
+		pci = cmds.createNode("pointOnCurveInfo" , n = str(s) + '_pci')
+		cmds.connectAttr(crv + '.worldSpace' , pci + '.inputCurve')
+		cmds.setAttr(pci + '.parameter' , u )
+		#cmds.connectAttr( pci + '.position' , s + '.t')
+		#set vectorProduct to cross product operation
+		cmds.setAttr(ax_Z+".operation", 2)
+		cmds.setAttr(ax_X+".operation", 2)
+		#finding the cross product for XYZ
+		cmds.connectAttr(pci+ ".normalizedTangent", ax_X + ".input1", f= True)
+		cmds.connectAttr(pci+ ".normalizedNormal", ax_X + ".input2", f= True)
+		cmds.connectAttr(pci+ ".normalizedNormal", ax_Z + ".input1", f= True)
+		cmds.connectAttr(ax_X + ".output", ax_Z + ".input2", f = True)
+		#euler X
+		cmds.connectAttr(ax_X + ".outputX",fourByFourMatrix+".in00",f = True)
+		cmds.connectAttr(ax_X + ".outputY",fourByFourMatrix+".in01",f = True)
+		cmds.connectAttr(ax_X + ".outputZ",fourByFourMatrix+".in02",f = True)
+		#euler Z
+		cmds.connectAttr(ax_Z + ".outputX",fourByFourMatrix+".in20",f = True)
+		cmds.connectAttr(ax_Z + ".outputY",fourByFourMatrix+".in21",f = True)
+		cmds.connectAttr(ax_Z + ".outputZ",fourByFourMatrix+".in22",f = True)
+		#euler Y
+		cmds.connectAttr(pci+ ".normalizedNormalX",fourByFourMatrix+".in10",f = True)
+		cmds.connectAttr(pci+ ".normalizedNormalY",fourByFourMatrix+".in11",f = True)
+		cmds.connectAttr(pci+ ".normalizedNormalZ",fourByFourMatrix+".in12",f = True)
+		#position
+		cmds.connectAttr(pci + ".positionX",fourByFourMatrix+".in30",f = True)
+		cmds.connectAttr(pci + ".positionY",fourByFourMatrix+".in31",f = True)
+		cmds.connectAttr(pci + ".positionZ",fourByFourMatrix+".in32",f = True)
+		
+		#at last, output into decompoeMatrix
+		cmds.connectAttr(fourByFourMatrix+".output",decompose4x4Matrix+".inputMatrix",f = True)
+		cmds.connectAttr(decompose4x4Matrix+".outputTranslate",s +".t",f = True)
+		cmds.connectAttr(decompose4x4Matrix+".outputRotate",s + ".rotate",f = True)
 
 def getUParam( pnt = [], crv = None):
 	
@@ -161,6 +200,8 @@ def getDagPath( objectName):
         oNode = OpenMaya.MDagPath()
         selectionList.getDagPath(0, oNode)
         return oNode
+
+
 '''
 creates controls from object position
 
@@ -510,6 +551,35 @@ def createControlJoints(lowRezCurve, prefix):
 		num = num - 1
 	return ctrlJNTs
 
+def createLowRezCurve(prefix, hiRezCurve):
+	tempCrv = cmds.rebuildCurve(hiRezCurve, ch=1, rpo=0,rt=0,end=1, kr=0,kcp=0,kep=1,kt=0,s=2,d=3,tol=0.01)
+	cmds.delete(tempCrv, ch=True)
+	lowRezCurve = cmds.rename(tempCrv[0],prefix + "_loRez_crv")
+	return lowRezCurve
+
+#possibly redundant
+def createBindJoints(prefix, tmpJNTs, findYourCenter):
+	bindJNTs = []
+	num = len(tmpJNTs)
+	#rebuild list for naming
+	for each in tmpJNTs:
+		tEmPbLaH = cmds.listRelatives(each, p=True)
+		if findYourCenter:
+			cmds.rename(tEmPbLaH, prefix + '_aimJNT_' + str(len(tmpJNTs) - num))
+		bindJNTs.append(cmds.rename(each, prefix + '_bnJNT_' + str(len(tmpJNTs) - num)))
+		num = num - 1
+	return bindJNTs
+
+#redundant??
+def createPinnedLocs(prefix, locators):
+	pinnedLocs = []
+	num = len(locators)
+	
+	for each in locators:
+		pinnedLocs.append(cmds.rename(each, prefix + '_loc_' + str(len(locators) - num)))
+		num = num - 1
+	return pinnedLocs
+
 '''
 main function
 
@@ -544,7 +614,6 @@ def runControlCreator(*args):
 	prefix = objectPrefix()
 	
 	#create a curve from edge
-	# ----------------------------------------------------------------------------------
 	curves = curveFromVertPositions(edges)
 	hiRezCurve = cmds.rename( curves, prefix + "_hiRez_crv") #rename var to hiRezCurve
 	hiRezCurveGrp = cmds.group(hiRezCurve, n=hiRezCurve+'_grp')
@@ -554,35 +623,17 @@ def runControlCreator(*args):
 	#add first and last cvs just incase of step?
 	cmds.SelectCurveCVsAll()
 	
-	
-	#var determines if there will be a aim constraint based crv or a parent based. 
-	#center would best be used for eyes where a center can easily be obtained. 
-	#create bind joints
+	#bind joints
 	# ----------------------------------------------------------------------------------
 	tmpJNTs = first(center = centerLocator, fromCenter = findYourCenter, step = limitHiRexJoints)
-	bindJNTs = []
-	num = len(tmpJNTs)
-	
-	#rebuild list for naming
-	for each in tmpJNTs:
-		tEmPbLaH = cmds.listRelatives(each, p=True)
-		if findYourCenter:
-			cmds.rename(tEmPbLaH, prefix + '_aimJNT_' + str(len(tmpJNTs) - num))
-		bindJNTs.append(cmds.rename(each, prefix + '_bnJNT_' + str(len(tmpJNTs) - num)))
-		num = num - 1
-	
+	bindJNTs = createBindJoints(prefix, tmpJNTs, findYourCenter)
 	jntParent = cmds.listRelatives(bindJNTs, p=True)
 	
-	
-	#create locators 
+	#locators 
 	# ----------------------------------------------------------------------------------
 	locators = second(upVector = upVecForCenter, fromCenter = findYourCenter, objects = bindJNTs)
-	pinnedLocs = []
-	num = len(locators)
+	pinnedLocs = createPinnedLocs(prefix, locators)
 	
-	for each in locators:
-		pinnedLocs.append(cmds.rename(each, prefix + '_loc_' + str(len(locators) - num)))
-		num = num - 1
 	#pin locators to curve
 	third(hiRezCurve, pinnedLocs)
 	
@@ -598,16 +649,13 @@ def runControlCreator(*args):
 			cmds.parent(bindJNTs[i], pinnedLocs[i])
 		hierarchyGrp.append(cmds.group(pinnedLocs, n=prefix + 'locator_grp'))
 	
-	
-	#create a lowRez Curve for controllers
-	# ----------------------------------------------------------------------------------
-	tempCrv = cmds.rebuildCurve(hiRezCurve, ch=1, rpo=0,rt=0,end=1, kr=0,kcp=0,kep=1,kt=0,s=2,d=3,tol=0.01)
-	cmds.delete(tempCrv, ch=True)
-	lowRezCurve = cmds.rename(tempCrv[0],prefix + "curve_loRez_crv")
+	#low resolution curve
+	lowRezCurve = createLowRezCurve(prefix, hiRezCurve)
 	lowRezCurveGrp = cmds.group(lowRezCurve, n=lowRezCurve+'_grp')
-	cmds.wire( hiRezCurve , w = lowRezCurve, gw= False, en=1.000000, ce=0.000000, li=0.000000, dds=[(0, 100)], n=prefix + 'lowRez_wire')
+	cmds.wire( hiRezCurve , w = lowRezCurve, gw= False, en=1.000000, ce=0.000000, li=0.000000, dds=[(0, 100)], n=prefix + '_lowRez_wire')
 	
-	#get the low resolution curves cvs and create control joints
+	
+	#control joints
 	ctrlJNTs = createControlJoints(lowRezCurve, prefix)
 	
 	#skin Control joints to lowRezCurve and clean up to group
