@@ -38,9 +38,11 @@ runControlCreator
 -runControlCreator method should be broken into smaller parts (added dividers to determine where to make functions)
 -rename methods
 -different UI setup
--bindjoints need aimconstraints to maintain rotation. (IMPORTANT) This can be seen when parented to hierarchical controls. (POSSIBLY FIXED) 
-	Note: Far as I can tell the bind joints seem to move with everything in the scale group now. 
+-bindjoints need aimconstraints to maintain rotation. (IMPORTANT) This can be seen when parented to hierarchical controls. (WIP) 
+	Note: bind joints should be constrained and not directly parented. 
 -sliderjoints should be the only bind joints in the attach to nurbs surface. 
+-use local space so that script can attach to parent joint (a parent constraint with maintain offset made in nodes) 
+-nurbs surface hit detection option to allow pulling off the surface
 
 '''
 
@@ -124,18 +126,23 @@ def third(crv = '', positionObjects = []):
     sel = positionObjects
     for s in sel :
 		pos = cmds.xform (s ,q = 1 , ws = 1 , t = 1) 
+		#unnecessary and does not work. 
 		#cross Product nodes
+		'''
 		ax_Z = cmds.createNode( 'vectorProduct', n = str(s) + '_vectorProduct_ax_Z' )
 		ax_X = cmds.createNode( 'vectorProduct', n = str(s) + '_vectorProduct_ax_X' )
 		#end product nodes
 		fourByFourMatrix = cmds.createNode( 'fourByFourMatrix', n = str(s) + '_fourByFourMatrix' )
 		decompose4x4Matrix = cmds.createNode( 'decomposeMatrix', n = str(s) + '_decompose4x4Matrix' )
+		'''
 		u = getUParam(pos, crv)
 		#name = s.replace("_LOC" , "_PCI")
 		pci = cmds.createNode("pointOnCurveInfo" , n = str(s) + '_pci')
 		cmds.connectAttr(crv + '.worldSpace' , pci + '.inputCurve')
 		cmds.setAttr(pci + '.parameter' , u )
-		#cmds.connectAttr( pci + '.position' , s + '.t')
+		cmds.connectAttr( pci + '.position' , s + '.t')
+		'''
+		#unnecessary and does not work. 
 		#set vectorProduct to cross product operation
 		cmds.setAttr(ax_Z+".operation", 2)
 		cmds.setAttr(ax_X+".operation", 2)
@@ -161,10 +168,11 @@ def third(crv = '', positionObjects = []):
 		cmds.connectAttr(pci + ".positionY",fourByFourMatrix+".in31",f = True)
 		cmds.connectAttr(pci + ".positionZ",fourByFourMatrix+".in32",f = True)
 		
-		#at last, output into decompoeMatrix
+		#at last, output into decomposeMatrix
 		cmds.connectAttr(fourByFourMatrix+".output",decompose4x4Matrix+".inputMatrix",f = True)
 		cmds.connectAttr(decompose4x4Matrix+".outputTranslate",s +".t",f = True)
 		cmds.connectAttr(decompose4x4Matrix+".outputRotate",s + ".rotate",f = True)
+		'''
 
 def getUParam( pnt = [], crv = None):
 	
@@ -616,10 +624,10 @@ def runControlCreator(*args):
 	#create a curve from edge
 	curves = curveFromVertPositions(edges)
 	hiRezCurve = cmds.rename( curves, prefix + "_hiRez_crv") #rename var to hiRezCurve
-	hiRezCurveGrp = cmds.group(curveObj, n=curveObj+'_grp')
+	hiRezCurveGrp = cmds.group(hiRezCurve, n=hiRezCurve+'_grp')
 	
-	cmds.delete(curveObj, ch=True)
-	cmds.select(curveObj)
+	cmds.delete(hiRezCurve, ch=True)
+	cmds.select(hiRezCurve)
 	#add first and last cvs just incase of step?
 	cmds.SelectCurveCVsAll()
 	
@@ -646,18 +654,16 @@ def runControlCreator(*args):
 		print('parent not needed')
 	else:
 		for i in range(len(bindJNTs)):
-			cmds.parent(bindJNTs[i], pinnedLocs[i])
+			#parentConstraint -mo -skipRotate x -skipRotate y -skipRotate z -weight 1;
+			cmds.pointConstraint(pinnedLocs[i], bindJNTs[i])
 		hierarchyGrp.append(cmds.group(pinnedLocs, n=prefix + 'locator_grp'))
+		hierarchyGrp.append(cmds.group(bindJNTs, n=prefix + 'bindJnts_grp'))
 	
 	#low resolution curve
 	lowRezCurve = createLowRezCurve(prefix, hiRezCurve)
 	lowRezCurveGrp = cmds.group(lowRezCurve, n=lowRezCurve+'_grp')
-<<<<<<< HEAD
 	cmds.wire( hiRezCurve , w = lowRezCurve, gw= False, en=1.000000, ce=0.000000, li=0.000000, dds=[(0, 100)], n=prefix + '_lowRez_wire')
 	
-=======
-	cmds.wire( curveObj , w = lowRezCurve, gw= False, en=1.000000, ce=0.000000, li=0.000000, dds=[(0, 100)], n=prefix + 'lowRez_wire')
->>>>>>> parent of 939df1c... update face controls script
 	
 	#control joints
 	ctrlJNTs = createControlJoints(lowRezCurve, prefix)
@@ -685,7 +691,7 @@ def runControlCreator(*args):
 		nonDeformableGrp = cmds.group(hiRezCurveGrp, lowRezCurveGrp, hierarchyGrp[1], n = prefix + '_nonDeform_grp')
 		centerPivotScaleGrp = cmds.group(centerLocator, n = prefix + '_scale_grp')
 	else:
-		scaleGrp = cmds.group(hierarchyGrp[1], hierarchyGrp[2], n=prefix+'_scale_grp')
+		scaleGrp = cmds.group(hierarchyGrp[1], hierarchyGrp[2], hierarchyGrp[3], n=prefix+'_scale_grp')
 		nonDeformableGrp = cmds.group(hiRezCurveGrp, lowRezCurveGrp, hierarchyGrp[0], n = prefix + '_nonDeform_grp')
 		for each in bindJNTs:
 			cmds.scaleConstraint(scaleGrp, each)		
