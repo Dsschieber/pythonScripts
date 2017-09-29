@@ -616,10 +616,10 @@ def runControlCreator(*args):
 	#create a curve from edge
 	curves = curveFromVertPositions(edges)
 	hiRezCurve = cmds.rename( curves, prefix + "_hiRez_crv") #rename var to hiRezCurve
-	hiRezCurveGrp = cmds.group(hiRezCurve, n=hiRezCurve+'_grp')
+	hiRezCurveGrp = cmds.group(curveObj, n=curveObj+'_grp')
 	
-	cmds.delete(hiRezCurve, ch=True)
-	cmds.select(hiRezCurve)
+	cmds.delete(curveObj, ch=True)
+	cmds.select(curveObj)
 	#add first and last cvs just incase of step?
 	cmds.SelectCurveCVsAll()
 	
@@ -652,8 +652,12 @@ def runControlCreator(*args):
 	#low resolution curve
 	lowRezCurve = createLowRezCurve(prefix, hiRezCurve)
 	lowRezCurveGrp = cmds.group(lowRezCurve, n=lowRezCurve+'_grp')
+<<<<<<< HEAD
 	cmds.wire( hiRezCurve , w = lowRezCurve, gw= False, en=1.000000, ce=0.000000, li=0.000000, dds=[(0, 100)], n=prefix + '_lowRez_wire')
 	
+=======
+	cmds.wire( curveObj , w = lowRezCurve, gw= False, en=1.000000, ce=0.000000, li=0.000000, dds=[(0, 100)], n=prefix + 'lowRez_wire')
+>>>>>>> parent of 939df1c... update face controls script
 	
 	#control joints
 	ctrlJNTs = createControlJoints(lowRezCurve, prefix)
