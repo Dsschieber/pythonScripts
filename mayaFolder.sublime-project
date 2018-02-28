@@ -1,0 +1,25 @@
+// myproject.sublime-project
+{
+    "folders":
+    [
+        {
+            "path": "C:/Users/Doug/Documents/maya/scripts"
+        }
+    ],
+
+    // ...
+
+    "settings": {
+        "python_interpreter_path": "C:\\Program Files\\Autodesk\\Maya2016\\bin\\mayapy.exe",
+
+        "python_package_paths": [
+            // My virtualenv python project location
+            "C:/Program Files/Autodesk/Maya2016/Python/Lib/site-packages",
+            // My PySide installation lives here
+            "C:/Program Files/Autodesk/Maya2016/include/python2.7",
+            // Maya's python stubs
+            "C:/Program Files/Autodesk/Maya2016/devkit/other/pymel/extras/completion/py"
+            ]
+    }
+
+}
