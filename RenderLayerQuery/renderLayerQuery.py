@@ -7,15 +7,21 @@ getRenderLayerObjects not finding all the polygons that it should
 	Note: this could be due to the top transform being added rather than polygon itself. Will eventually find work around (In Progress.)
 
 """
+import os
+import RenderLayerQuery
+reload(RenderLayerQuery)
+
+
+GM = RenderLayerQuery.GM
 
 try:
-    from PySide import QtCore, QtUiTools
-    from PySide import QtGui as widgets
-    from shiboken import wrapInstance
+	from PySide import QtCore, QtUiTools
+	from PySide import QtGui as widgets
+	from shiboken import wrapInstance
 except:
-    from PySide2 import QtCore, QtGui, QtUiTools
-    from PySide2 import QtWidgets as widgets
-    from shiboken2 import wrapInstance
+	from PySide2 import QtCore, QtGui, QtUiTools
+	from PySide2 import QtWidgets as widgets
+	from shiboken2 import wrapInstance
 
 def loadUiWidget(uifilename, parent = None):
 	loader = QtUiTools.QUiLoader()
@@ -26,24 +32,24 @@ def loadUiWidget(uifilename, parent = None):
 	return ui
 
 def runRenderLayerMenuUI():
-    """Command within Maya to run this script"""
-    renderLayerMenu()
-    #does not delete ui at the moment
+	"""Command within Maya to run this script"""
+	renderLayerMenu()
+	#does not delete ui at the moment
 
 class renderLayerMenu(widgets.QMainWindow):
-	from maya import OpenMaya
-	import maya.cmds as cmds
+	from maya import OpenMaya, cmds, mel
 	import pymel.core as pm	
-	import maya.mel as mel
 	from functools import partial
 	
 	def __init__(self):
 		"""Gets maya top window"""
-		
-		#get directory of UI
+		#    #include <QPixmap>
+		# QPixmap pix("/home/your_name/picture_of_my_cat_093495.jpg");
+		# ui->label->setPixmap(pix);
+		# get directory of UI
 		usrProfile = mel.eval('getenv("USERPROFILE")')
 		mayaVersion = str(cmds.about(version=True))
-		uiFile = (usrProfile+'/Documents/maya/')+mayaVersion+'/scripts/renderlayerOrganizer.ui' #) why python? 
+		uiFile = (usrProfile+'/Documents/maya/')+mayaVersion+'/scripts/RenderLayerQuery/renderlayerOrganizer.ui' #) why python? 
 		
 		
 		main_window = [o for o in widgets.qApp.topLevelWidgets() if o.objectName()=="MayaWindow"][0]	
@@ -51,6 +57,8 @@ class renderLayerMenu(widgets.QMainWindow):
 		
 		self.renderLayerMenu = loadUiWidget(uiFile, main_window)		
 		self.renderLayerMenu.setAttribute(QtCore.Qt.WA_DeleteOnClose, True)
+		self.defaultIconImg = os.path.join(GM.iconsFolderPath, 'placeHolderPic.jpg')
+		self.renderLayerMenu.loadPreviewImage.setPixmap(self.defaultIconImg) # needs image directory
 		self.connectSignals()
 		self.renderLayerMenu.show()
 	
