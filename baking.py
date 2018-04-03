@@ -1,9 +1,29 @@
+""" 
+baking tools script.
+
+functions
+-bakeJointsToWorld
+-selectJointsFromGeometry
+
+
+"""
+
+import pymel.core as pm
+from maya import cmds
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
 
 def bakeJointsToWorld():
-	""" take a selction of joints and bake it to worldspace
-		removes joints from current hierarchy and parents them under new baked joint. 
 	"""
-	from maya import cmds
+
+	takes a selection of joints, creates a joint,
+	bakes that joint to worldPos of selection, then parents selection under bakedJoints. 
+	This is good if your fbx joints are losing their local space.
+
+	"""
 
 	selObj = cmds.ls(sl=True)
 
@@ -49,3 +69,29 @@ def bakeJointsToWorld():
 		cmds.delete(i[0] + '*Constraint*')
 	for i in range(len(selObj)):
 		cmds.parent( selObj[i], bakeList[i])
+
+def selectJointsFromGeometry():
+	""" 
+	this function takes a selection of skinned geometry 
+	and will select the joints that are skinned to it. 
+	"""
+
+	skinnedObject = pm.ls(sl=True)
+	uniqueJointList = []
+
+	#when there is more than one skin connection it will throw an error (example skinned blendshape)
+	for s in skinnedObject:
+		toNode = pm.PyNode(s)
+		objectConnections = pm.listHistory(toNode, exactType ="skinCluster")
+		if objectConnections == []:
+			logger.info(s + " does not have a skinCluster. Script will now cancel.")
+			return
+		objectJoints = objectConnections[0].getWeightedInfluence()
+		for x in objectJoints:
+			if not x in uniqueJointList:
+				uniqueJointList.append(x)
+	
+	pm.select(uniqueJointList)
+
+if __name__ == "__main__":
+	selectJointsFromGeometry()
