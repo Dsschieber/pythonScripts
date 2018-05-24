@@ -1,7 +1,7 @@
 import pymel.core as pm
-from maya import cmds, mel
+from maya import cmds, mel, OpenMaya
 import logging
-from math import sqrt, pow
+from math import sqrt, pow, pi
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -31,8 +31,65 @@ def alignNodes(nodeToAlign, listOfNodes):
 	cmds.delete(cmds.parentConstraint(mo=0, st="none", sr="none"))
 
 
+def getPoleVectorPos(startJoint, midJoint, endJoint, name):
+	"""gets the pole vector position from three points in worldspace"""
+	print(startJoint, midJoint, endJoint, name)
+	endPos = cmds.xform(endJoint, q=True, ws=True, t=True)
+	midPos = cmds.xform(midJoint, q=True, ws=True, t=True)
+	startPos = cmds.xform(startJoint, q=True, ws=True, t=True)
+	
+	endV = OpenMaya.MVector(endPos[0], endPos[1], endPos[2])
+	startV = OpenMaya.MVector(startPos[0], startPos[1], startPos[2])
+	midV = OpenMaya.MVector(midPos[0], midPos[1], midPos[2])
+	
+	startEnd = endV - startV
+	startMid = midV - startV
+	
+	dotP = startMid * startEnd
+	proj = float(dotP) / float(startEnd.length())
+	startEndN = startEnd.normal()
+	projV = startEndN * proj
+	
+	arrowV = startMid - projV
+	arrowV*= 0.5
+	
+	finalV = arrowV + midV
+	
+	cross1 = startEnd ^ startMid
+	cross1.normalize()
+	
+	cross2 = cross1 ^ arrowV
+	cross2.normalize()
+	arrowV.normalize()
+	
+	matrixV = [ arrowV.x, arrowV.y, arrowV.z, 0,
+			cross1.x, cross1.y, cross1.z, 0,
+			cross2.x, cross2.y, cross2.z, 0,  
+			0, 0, 0, 1]
+	
+	matrixM = OpenMaya.MMatrix()
+	
+	OpenMaya.MScriptUtil.createMatrixFromList(matrixV, matrixM)
+	
+	matrixFn = OpenMaya.MTransformationMatrix(matrixM)
+	
+	rot = matrixFn.eulerRotation()
+	
+	#create and move pole vector ctrl
+	locatorPV = cmds.spaceLocator(n=name+'_pvCtrl_1')[0]
+	cmds.xform(locatorPV, ws=1, t= (finalV.x, finalV.y, finalV.z))
+	
+	#rotations of pole vector
+	cmds.xform(locatorPV, ws=1, rotation=((rot.x/pi*180.0),
+									(rot.y/pi*180.0),
+									(rot.z/pi*180.0)))
 
 
+'''
+----------------------------------------------------------------------------------------
+ribbon spline section
+
+'''
 
 def getDistance(objA, objB):
 	""" Get the distance from two points """
@@ -51,7 +108,8 @@ def createNurbSurf(numJoints, name):
 	vCoord = 1.0/numJoints
 	follicleList = []
 	
-	# this section can also use CMuscleSurfAttach, they both seem to work the exact same so personal pref.
+	# this section can also use CMuscleSurfAttach, 
+	# found that muscle surface attach is less efficient
 	for i in range(numJoints):
 		fol = pm.createNode('transform', n= name + '_fol#', ss=True)
 		folShape = pm.createNode('follicle', n=fol.name() + 'Shape', p=fol, ss=True)
@@ -118,7 +176,7 @@ def createControlJoints(front, mid, end, name, orientCtrl = False):
 	return ctrlJoint
 
 
-def createRibbonSpline(base, side, numJoints = 5):
+def createRibbonSpline(side, base, numJoints = 5):
 	""" creates a ribbon spline with control joints """
 	conName = nameNode(base, side)
 	follicleList, nurbsSurf, front, end = createNurbSurf(numJoints, conName)
@@ -138,7 +196,7 @@ def createRibbonSpline(base, side, numJoints = 5):
 			sum = (i + 1) + sum
 		mid = sum / total - 1
 		ctrlJoints = createControlJoints(front, bindJoints[mid], end, conName, orientCtrl = True)
-	pm.skinCluster( ctrlJoints, nurbsSurf, bm=0, dr=2, mi=2)
+	pm.skinCluster( ctrlJoints, nurbsSurf[0], bm=0, dr=2, mi=2)
 
 def midLocPos(front, end):
 	""" if their is no center joint a temporary locator is used for mid ctrl position """
@@ -147,6 +205,61 @@ def midLocPos(front, end):
 	tempP = pm.pointConstraint(front, end, loc, mo=False)
 	pm.delete(tempP)
 	return loc
+
+
+def quickSpineCtrl(side, base):
+	""" from control joint selection creates controls for spine, 
+	this function will build a quick spine control network """
+	ctrlJoints = pm.selected()
+	conName = nameNode(base, side)
+	print(ctrlJoints)
+	ctrlBase = createControl(side, base + "Tip", "circleX", sdk=1, con=1)
+	ctrlMid = createControl(side, base + "Mid", "circleX", sdk=1, con=1)
+	ctrlEnd = createControl(side, base + "End", "circleX", sdk=1, con=1)
+
+	print(ctrlBase, ctrlMid, ctrlEnd)
+	locs = []
+	tangentLocs = []
+
+	for i in range(len(ctrlJoints)):
+		if i == 0:
+			tParent = pm.parentConstraint( ctrlJoints[i], ctrlBase[0], mo =False)
+			tangentLocs.append(pm.spaceLocator(n = conName + "base_tangent"))
+			locs.append(pm.spaceLocator(n= conName + "base_upVec"))
+		elif i == 1:
+			tParent = pm.parentConstraint( ctrlJoints[i], ctrlMid[0] , mo =False)
+			locs.append(pm.spaceLocator(n= conName + "mid_upVec"))
+		else:
+			tParent = pm.parentConstraint( ctrlJoints[i], ctrlEnd[0] , mo =False)
+			tangentLocs.append(pm.spaceLocator(n = conName + "end_tangent"))
+			tanEndParent = pm.parentConstraint(ctrlEnd[0], ctrlMid[0], tangentLocs[1], mo = False)
+			tanBaseParent = pm.parentConstraint(ctrlBase[0], ctrlMid[0], tangentLocs[0], mo = False)
+			locs.append(pm.spaceLocator(n= conName + "end_upVec"))
+			pm.delete(tanEndParent, tanBaseParent)
+			pm.parent(tangentLocs[1], ctrlEnd[3] )
+			pm.parent(tangentLocs[0], ctrlBase[3] )
+		pm.delete(tParent)
+
+
+	for i in range(len(ctrlJoints)):
+		lParent = pm.parentConstraint(ctrlJoints[i], locs[i], mo=False)
+		pm.delete(lParent)
+		pm.parent(locs[i], ctrlJoints[i])
+		locs[i].translateY.set(15.0)
+		if i == 0:
+			pm.parent(ctrlJoints[i], ctrlBase[3])
+		elif i == 1:
+			pm.parent(ctrlJoints[i], ctrlMid[3])
+			pm.parent(locs[i], w=True)
+		else:
+			pm.parent(ctrlJoints[i], ctrlEnd[3])
+
+	pm.pointConstraint(locs[0], locs[2], locs[1], mo=True)
+	pm.pointConstraint(tangentLocs[0], tangentLocs[1], ctrlMid[1], mo=True)
+	#aimConstraint -mo -weight 1 -aimVector 1 0 0 -upVector 0 1 0 -worldUpType "object" -worldUpObject testmid_upVec;
+	pm.aimConstraint(tangentLocs[0], ctrlMid[1], weight=True, aimVector=(1,0,0), upVector=(0,1,0), worldUpType="object", worldUpObject=locs[1], mo=True)
+
+
 
 
 def createCoordinatesSwitch(driversList=[], attrsList=[], drivenNode="", spaceNode="", side="left", constraintType="parent"):
@@ -203,7 +316,6 @@ def createCoordinatesSwitch(driversList=[], attrsList=[], drivenNode="", spaceNo
 				i=i+1
 			c=c+1
 			
-
 
 
 
@@ -413,7 +525,11 @@ def positionPoleVectorControl(startJoint, endJoint, poleVectorNode, distance):
 	cmds.xform(poleVectorNode, objectSpace=1, relative=1, t=[distance, distance, 0])
 	
 	cmds.delete(polyPlane)
-	
+
+
+
+
+
 
 def checkForWorldControl():
 	extraCon = checkForExtraControl()
